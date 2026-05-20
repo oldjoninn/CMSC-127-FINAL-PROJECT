@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LTO Information Management System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --navy: #0B1A32; --navy-light: #122240; --navy-mid: #1B3058;
+    --blue: #0052D4; --blue-light: #3B82F6; --blue-glow: rgba(0,82,212,.15);
+    --gold: #D4930D; --gold-light: #F59E0B; --gold-dim: rgba(245,158,11,.10);
+    --green: #16A34A; --green-dim: rgba(22,163,74,.10);
+    --red: #DC2626; --red-dim: rgba(220,38,38,.10);
+    --charcoal: #1E293B; --slate: #475569; --slate-light: #94A3B8;
+    --cream: #F8FAFC; --white: #FFFFFF;
+    --border: rgba(255,255,255,.06); --border-mid: #1E2E48;
+    --surface: rgba(255,255,255,.03);
+    --r-sm: 6px; --r-md: 8px; --r-lg: 10px; --r-pill: 20px;
+  }
+  html { font-size: 14px; }
+  body {
+    font-family: 'Instrument Sans', system-ui, sans-serif;
+    background: var(--navy); color: var(--cream);
+    display: flex; min-height: 100vh; -webkit-font-smoothing: antialiased;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 240px; background: var(--navy-light); border-right: 1px solid var(--border);
+    padding: 24px 16px; display: flex; flex-direction: column; gap: 4px;
+    position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; z-index: 100;
+  }
+  .sidebar .logo {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 8px 20px; border-bottom: 1px solid var(--border); margin-bottom: 12px;
+  }
+  .sidebar .logo-icon {
+    width: 38px; height: 38px; background: var(--blue); border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Instrument Sans', sans-serif;
+    font-weight: 700; font-size: 14px; color: var(--white); letter-spacing: .02em; flex-shrink: 0;
+  }
+  .sidebar .logo-text {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-weight: 400; font-size: 17px; color: var(--cream); line-height: 1.1;
+  }
+  .sidebar .logo-sub { font-size: 10px; color: var(--slate-light); letter-spacing: .03em; }
+  .sidebar a {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border-radius: var(--r-md); color: var(--slate-light); text-decoration: none;
+    font-weight: 500; font-size: 13.5px; transition: .15s;
+  }
+  .sidebar a:hover { background: var(--surface); color: var(--cream); }
+  .sidebar a.active { background: var(--blue-glow); color: var(--blue-light); }
+  .sidebar a .icon { width: 20px; text-align: center; font-size: 16px; }
+  .sidebar .section-label {
+    font-family: 'Geist Mono', monospace; font-size: 9px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--slate);
+    padding: 16px 12px 6px;
+  }
+
+  /* MAIN */
+  .main { margin-left: 240px; flex: 1; padding: 32px 40px; min-height: 100vh; }
+  h1 {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 22px; font-weight: 400; color: var(--cream); margin-bottom: 4px;
+  }
+  .subtitle { color: var(--slate-light); font-size: 13px; margin-bottom: 24px; }
+  .gold-rule { width: 48px; height: 2px; background: var(--gold); border: none; margin-bottom: 16px; }
+
+  /* FLASH */
+  .flash { padding: 12px 16px; border-radius: var(--r-lg); margin-bottom: 20px; font-size: 13px; font-weight: 500; }
+  .flash.success { background: var(--green-dim); color: var(--green); border: 1px solid rgba(22,163,74,.18); }
+  .flash.danger  { background: var(--red-dim); color: var(--red); border: 1px solid rgba(220,38,38,.18); }
+
+  /* STAT CARDS */
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: var(--navy-light); border: 1px solid var(--border-mid); border-radius: var(--r-lg); padding: 20px; }
+  .stat-card .label { font-size: 10px; font-weight: 700; color: var(--slate); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; color: var(--cream); }
+  .stat-card .value.warn  { color: var(--gold-light); }
+  .stat-card .value.alert { color: var(--red); }
+
+  /* TABLE */
+  .table-wrap { background: var(--navy-light); border: 1px solid var(--border-mid); border-radius: var(--r-lg); overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { background: var(--surface); }
+  th {
+    text-align: left; padding: 11px 14px; font-weight: 700; font-size: 10px;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--slate);
+    border-bottom: 1px solid var(--border-mid); white-space: nowrap;
+  }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--cream); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.015); }
+  .mono { font-family: 'Geist Mono', monospace; font-size: 12px; letter-spacing: .02em; }
+
+  /* BADGES */
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: var(--r-pill);
+    font-size: 11px; font-weight: 700; text-transform: capitalize; letter-spacing: .02em;
+  }
+  .badge.valid, .badge.active, .badge.paid { background: var(--green-dim); color: var(--green); }
+  .badge.expired, .badge.unpaid, .badge.revoked { background: var(--red-dim); color: var(--red); }
+  .badge.suspended, .badge.contested { background: var(--gold-dim); color: var(--gold-light); }
+
+  /* BUTTONS */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+    border: none; border-radius: var(--r-md); font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: .15s; text-decoration: none;
+  }
+  .btn-primary { background: var(--blue); color: var(--white); }
+  .btn-primary:hover { background: var(--blue-light); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: var(--r-sm); }
+  .btn-ghost { background: transparent; color: var(--slate-light); border: 1px solid var(--border-mid); }
+  .btn-ghost:hover { background: var(--surface); color: var(--cream); }
+  .btn-danger { background: var(--red-dim); color: var(--red); }
+  .btn-danger:hover { background: rgba(220,38,38,.18); }
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+
+  /* MODAL */
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    z-index: 500; align-items: center; justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--navy-light); border: 1px solid var(--border-mid);
+    border-radius: 14px; width: 520px; max-height: 85vh; overflow-y: auto; padding: 28px;
+  }
+  .modal h2 {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 17px; font-weight: 400; color: var(--cream); margin-bottom: 20px;
+  }
+
+  /* FORM */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-grid .full { grid-column: 1 / -1; }
+  label.field {
+    display: flex; flex-direction: column; gap: 5px;
+    font-size: 11px; font-weight: 700; color: var(--slate);
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  input, select {
+    background: var(--navy); border: 1px solid var(--border-mid); border-radius: 7px;
+    padding: 9px 12px; color: var(--cream); font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px; outline: none; transition: .15s;
+  }
+  input[name="license_number"], input[name="plate_number"], input[name="chassis_number"],
+  input[name="engine_number"], input[name="registration_number"], input[name="franchise_number"] {
+    font-family: 'Geist Mono', monospace; font-size: 12.5px; letter-spacing: .03em;
+  }
+  input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-glow); }
+  select { cursor: pointer; }
+  .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+  /* REPORTS */
+  .report-card { background: var(--navy-light); border: 1px solid var(--border-mid); border-radius: var(--r-lg); padding: 20px; margin-bottom: 16px; }
+  .report-card h3 { font-family: 'Instrument Serif', Georgia, serif; font-size: 14px; font-weight: 400; color: var(--cream); margin-bottom: 12px; }
+  .report-card .report-num { font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--gold-light); margin-bottom: 4px; letter-spacing: .08em; }
+  .report-card .inline-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  .report-card .inline-form label.field { min-width: 140px; }
+
+  .empty { text-align: center; padding: 40px; color: var(--slate-light); font-size: 13px; font-style: italic; }
+  .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--blue-light); text-decoration: none; font-size: 13px; font-weight: 500; margin-bottom: 16px; }
+  .back-link:hover { color: var(--cream); }
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">LTO</div>
+    <div>
+      <div class="logo-text">LTO IMS</div>
+      <div class="logo-sub">Information Management System</div>
+    </div>
+  </div>
+  <div class="section-label">Overview</div>
+  <a href="/" class="{{ 'active' if page=='dashboard' }}"><span class="icon">📊</span> Dashboard</a>
+  <div class="section-label">Management</div>
+  <a href="/drivers" class="{{ 'active' if page=='drivers' }}"><span class="icon">🪪</span> Drivers</a>
+  <a href="/vehicles" class="{{ 'active' if page=='vehicles' }}"><span class="icon">🚗</span> Vehicles</a>
+  <a href="/registrations" class="{{ 'active' if page=='registrations' }}"><span class="icon">📋</span> Registrations</a>
+  <a href="/violations" class="{{ 'active' if page=='violations' }}"><span class="icon">🚨</span> Violations</a>
+  <div class="section-label">Analytics</div>
+  <a href="/reports" class="{{ 'active' if page in ('reports','report_result') }}"><span class="icon">📈</span> Reports</a>
+</nav>
+
+<div class="main">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+
+  {% if page == 'dashboard' %}
+  <hr class="gold-rule"><h1>Dashboard</h1>
+  <p class="subtitle">LTO Information Management System — operational overview</p>
+  <div class="stat-grid" id="stats">
+    <div class="stat-card"><div class="label">Total Drivers</div><div class="value" id="s-drivers">–</div></div>
+    <div class="stat-card"><div class="label">Total Vehicles</div><div class="value" id="s-vehicles">–</div></div>
+    <div class="stat-card"><div class="label">Total Violations</div><div class="value" id="s-violations">–</div></div>
+    <div class="stat-card"><div class="label">Unpaid Violations</div><div class="value alert" id="s-unpaid">–</div></div>
+    <div class="stat-card"><div class="label">Invalid Licenses</div><div class="value warn" id="s-expired-lic">–</div></div>
+    <div class="stat-card"><div class="label">Expired Registrations</div><div class="value warn" id="s-expired-reg">–</div></div>
+  </div>
+  <script>
+    fetch('/api/stats').then(r=>r.json()).then(d=>{
+      document.getElementById('s-drivers').textContent=d.total_drivers;
+      document.getElementById('s-vehicles').textContent=d.total_vehicles;
+      document.getElementById('s-violations').textContent=d.total_violations;
+      document.getElementById('s-unpaid').textContent=d.unpaid_violations;
+      document.getElementById('s-expired-lic').textContent=d.expired_licenses;
+      document.getElementById('s-expired-reg').textContent=d.expired_registrations;
+    });
+  </script>
+  {% endif %}
+
+  {% if page == 'drivers' %}
+  <hr class="gold-rule"><h1>Driver Management</h1>
+  <p class="subtitle">Add, edit, and manage registered driver records</p>
+  <div class="toolbar"><button class="btn btn-primary" onclick="openModal('add-driver')">+ Add Driver</button></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>License #</th><th>Name</th><th>Sex</th><th>Age</th><th>Type</th><th>Status</th><th>Expiration</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for r in rows %}<tr>
+      <td class="mono">{{ r.license_number }}</td>
+      <td>{{ r.first_name }} {{ r.middle_name or '' }} {{ r.last_name }}</td>
+      <td>{{ r.sex }}</td><td>{{ r.age }}</td><td>{{ r.license_type }}</td>
+      <td><span class="badge {{ r.license_status }}">{{ r.license_status }}</span></td>
+      <td>{{ r.license_expiration_date }}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick='editDriver({{ r | tojson }})'>Edit</button>
+        <a class="btn btn-sm btn-danger" href="/drivers/delete/{{ r.license_number }}" onclick="return confirm('Delete this driver?')">Del</a>
+      </td>
+    </tr>{% endfor %}
+    {% if not rows %}<tr><td colspan="8" class="empty">No drivers found.</td></tr>{% endif %}
+    </tbody>
+  </table></div>
+
+  <div class="modal-backdrop" id="add-driver"><div class="modal"><h2>Add New Driver</h2>
+    <form method="POST" action="/drivers/add"><div class="form-grid">
+      <label class="field">License Number <input name="license_number" required placeholder="N01-90-123456"></label>
+      <label class="field">Sex <select name="sex"><option value="M">Male</option><option value="F">Female</option></select></label>
+      <label class="field">First Name <input name="first_name" required></label>
+      <label class="field">Middle Name <input name="middle_name"></label>
+      <label class="field">Last Name <input name="last_name" required></label>
+      <label class="field">Date of Birth <input type="date" name="date_of_birth" required></label>
+      <label class="field full">Address <input name="address" required></label>
+      <label class="field">License Type <select name="license_type"><option>Non-Professional</option><option>Professional</option><option>Student Permit</option></select></label>
+      <label class="field">License Status <select name="license_status"><option value="valid">Valid</option><option value="expired">Expired</option><option value="suspended">Suspended</option><option value="revoked">Revoked</option></select></label>
+      <label class="field">Issuance Date <input type="date" name="license_issuance_date" required></label>
+      <label class="field">Expiration Date <input type="date" name="license_expiration_date" required></label>
+    </div><div class="form-actions"><button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button><button type="submit" class="btn btn-primary">Add Driver</button></div></form>
+  </div></div>
+
+  <div class="modal-backdrop" id="edit-driver"><div class="modal"><h2>Edit Driver</h2>
+    <form method="POST" action="/drivers/edit"><div class="form-grid">
+      <label class="field">License Number <input name="license_number" readonly id="ed-ln"></label>
+      <label class="field">Sex <select name="sex" id="ed-sex"><option value="M">Male</option><option value="F">Female</option></select></label>
+      <label class="field">First Name <input name="first_name" required id="ed-fn"></label>
+      <label class="field">Middle Name <input name="middle_name" id="ed-mn"></label>
+      <label class="field">Last Name <input name="last_name" required id="ed-lnm"></label>
+      <label class="field">Date of Birth <input type="date" name="date_of_birth" required id="ed-dob"></label>
+      <label class="field full">Address <input name="address" required id="ed-addr"></label>
+      <label class="field">License Type <select name="license_type" id="ed-lt"><option>Non-Professional</option><option>Professional</option><option>Student Permit</option></select></label>
+      <label class="field">License Status <select name="license_status" id="ed-ls"><option value="valid">Valid</option><option value="expired">Expired</option><option value="suspended">Suspended</option><option value="revoked">Revoked</option></select></label>
+      <label class="field">Issuance Date <input type="date" name="license_issuance_date" required id="ed-isd"></label>
+      <label class="field">Expiration Date <input type="date" name="license_expiration_date" required id="ed-exd"></label>
+    </div><div class="form-actions"><button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button><button type="submit" class="btn btn-primary">Save Changes</button></div></form>
+  </div></div>
+
+  <script>
+  function editDriver(r){document.getElementById('ed-ln').value=r.license_number;document.getElementById('ed-fn').value=r.first_name;document.getElementById('ed-mn').value=r.middle_name||'';document.getElementById('ed-lnm').value=r.last_name;document.getElementById('ed-dob').value=r.date_of_birth;document.getElementById('ed-sex').value=r.sex;document.getElementById('ed-addr').value=r.address;document.getElementById('ed-lt').value=r.license_type;document.getElementById('ed-ls').value=r.license_status;document.getElementById('ed-isd').value=r.license_issuance_date;document.getElementById('ed-exd').value=r.license_expiration_date;openModal('edit-driver');}
+  </script>
+  {% endif %}
+
+  {% if page == 'vehicles' %}
+  <hr class="gold-rule"><h1>Vehicle Management</h1>
+  <p class="subtitle">Register and manage motor vehicles</p>
+  <div class="toolbar"><button class="btn btn-primary" onclick="openModal('add-vehicle')">+ Add Vehicle</button></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Plate #</th><th>Chassis #</th><th>Type</th><th>Make / Model</th><th>Year</th><th>Color</th><th>Owner</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for r in rows %}<tr>
+      <td class="mono">{{ r.plate_number }}</td><td class="mono">{{ r.chassis_number }}</td>
+      <td>{{ r.vehicle_type }}</td><td>{{ r.make }} {{ r.model }}</td>
+      <td>{{ r.year }}</td><td>{{ r.color }}</td>
+      <td>{{ r.owner_first_name }} {{ r.owner_last_name }}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick='editVehicle({{ r | tojson }})'>Edit</button>
+        <a class="btn btn-sm btn-danger" href="/vehicles/delete/{{ r.plate_number }}/{{ r.chassis_number }}" onclick="return confirm('Delete?')">Del</a>
+      </td>
+    </tr>{% endfor %}
+    {% if not rows %}<tr><td colspan="8" class="empty">No vehicles found.</td></tr>{% endif %}
+    </tbody>
+  </table></div>
+
+  <div class="modal-backdrop" id="add-vehicle"><div class="modal"><h2>Add New Vehicle</h2>
+    <form method="POST" action="/vehicles/add"><div class="form-grid">
+      <label class="field">Plate Number <input name="plate_number" required placeholder="ABC 1234"></label>
+      <label class="field">Chassis Number <input name="chassis_number" required placeholder="CHS-001"></label>
+      <label class="field">Engine Number <input name="engine_number" required placeholder="ENG-001"></label>
+      <label class="field">Vehicle Type <select name="vehicle_type"><option>private car</option><option>motorcycle</option><option>public utility vehicle</option></select></label>
+      <label class="field">Ownership <select name="ownership_type"><option>private</option><option>public</option></select></label>
+      <label class="field">Make <input name="make" required></label>
+      <label class="field">Model <input name="model" required></label>
+      <label class="field">Year <input type="number" name="year" min="1990" max="2030" required></label>
+      <label class="field">Color <input name="color" required></label>
+      <label class="field">Franchise # <input name="franchise_number" placeholder="Optional"></label>
+      <label class="field full">Owner <select name="license_number" required>{% for d in drivers_list %}<option value="{{ d.license_number }}">{{ d.first_name }} {{ d.last_name }} ({{ d.license_number }})</option>{% endfor %}</select></label>
+    </div><div class="form-actions"><button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button><button type="submit" class="btn btn-primary">Add Vehicle</button></div></form>
+  </div></div>
+
+  <div class="modal-backdrop" id="edit-vehicle"><div class="modal"><h2>Edit Vehicle</h2>
+    <form method="POST" action="/vehicles/edit"><div class="form-grid">
+      <label class="field">Plate Number <input name="plate_number" readonly id="ev-pn"></label>
+      <label class="field">Chassis Number <input name="chassis_number" readonly id="ev-cn"></label>
+      <label class="field">Engine Number <input name="engine_number" required id="ev-en"></label>
+      <label class="field">Vehicle Type <select name="vehicle_type" id="ev-vt"><option>private car</option><option>motorcycle</option><option>public utility vehicle</option></select></label>
+      <label class="field">Ownership <select name="ownership_type" id="ev-ot"><option>private</option><option>public</option></select></label>
+      <label class="field">Make <input name="make" required id="ev-mk"></label>
+      <label class="field">Model <input name="model" required id="ev-md"></label>
+      <label class="field">Year <input type="number" name="year" min="1990" max="2030" required id="ev-yr"></label>
+      <label class="field">Color <input name="color" required id="ev-cl"></label>
+      <label class="field">Franchise # <input name="franchise_number" id="ev-fr"></label>
+      <label class="field full">Owner <select name="license_number" required id="ev-ln">{% for d in drivers_list %}<option value="{{ d.license_number }}">{{ d.first_name }} {{ d.last_name }} ({{ d.license_number }})</option>{% endfor %}</select></label>
+    </div><div class="form-actions"><button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button><button type="submit" class="btn btn-primary">Save Changes</button></div></form>
+  </div></div>
+
+  <script>
+  function editVehicle(r){document.getElementById('ev-pn').value=r.plate_number;document.getElementById('ev-cn').value=r.chassis_number;document.getElementById('ev-en').value=r.engine_number;document.getElementById('ev-vt').value=r.vehicle_type;document.getElementById('ev-ot').value=r.ownership_type;document.getElementById('ev-mk').value=r.make;document.getElementById('ev-md').value=r.model;document.getElementById('ev-yr').value=r.year;document.getElementById('ev-cl').value=r.color;document.getElementById('ev-fr').value=r.franchise_number||'';document.getElementById('ev-ln').value=r.license_number;openModal('edit-vehicle');}
+  </script>
+  {% endif %}
+
+  {% if page == 'registrations' %}
+  <hr class="gold-rule"><h1>Vehicle Registration</h1>
+  <p class="subtitle">Track registrations and renewals</p>
+  <div class="toolbar"><button class="btn btn-primary" onclick="openModal('add-reg')">+ Add Registration</button></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Reg #</th><th>Vehicle</th><th>Registered</th><th>Expires</th><th>Status</th><th>Owner</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for r in rows %}<tr>
+      <td class="mono">{{ r.registration_number }}</td>
+      <td>{{ r.make }} {{ r.model }} <span class="mono" style="color:var(--slate-light)">({{ r.plate_number }})</span></td>
+      <td>{{ r.registration_date }}</td><td>{{ r.expiration_date }}</td>
+      <td><span class="badge {{ r.registration_status }}">{{ r.registration_status }}</span></td>
+      <td>{{ r.owner_first_name }} {{ r.owner_last_name }}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick='editReg({{ r | tojson }})'>Edit</button>
+        <a class="btn btn-sm btn-danger" href="/registrations/delete/{{ r.registration_number }}" onclick="return confirm('Delete?')">Del</a>
+      </td>
+    </tr>{% endfor %}
+    {% if not rows %}<tr><td colspan="7" class="empty">No registrations found.</td></tr>{% endif %}
+    </tbody>
+  </table></div>
+
+  <div class="modal-backdrop" id="add-reg"><div class="modal"><h2>Add Registration</h2>
+    <form method="POST" action="/registrations/add"><div class="form-grid">
+      <label class="field full">Registration Number <input name="registration_number" required placeholder="REG-2025-00001"></label>
+      <label class="field full">Vehicle <select name="vehicle_key" required>{% for v in vehicles_list %}<option value="{{ v.plate_number }}|{{ v.chassis_number }}">{{ v.make }} {{ v.model }} ({{ v.plate_number }})</option>{% endfor %}</select></label>
+      <label class="field">Registration Date <input type="date" name="registration_date" required></label>
+      <label class="field">Expiration Date <input type="date" name="expiration_date" required></label>
+      <label class="field">Status <select name="registration_status"><option value="active">Active</option><option value="expired">Expired</option><option value="suspended">Suspended</option></select></label>
+    </div><div class="form-actions"><button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button><button type="submit" class="btn btn-primary">Add Registration</button></div></form>
+  </div></div>
+
+  <div class="modal-backdrop" id="edit-reg"><div class="modal"><h2>Edit Registration</h2>
+    <form method="POST" action="/registrations/edit"><div class="form-grid">
+      <label class="field full">Registration Number <input name="registration_number" readonly id="er-rn"></label>
+      <label class="field">Registration Date <input type="date" name="registration_date" required id="er-rd"></label>
+      <label class="field">Expiration Date <input type="date" name="expiration_date" required id="er-ed"></label>
+      <label class="field">Status <select name="registration_status" id="er-rs"><option value="active">Active</option><option value="expired">Expired</option><option value="suspended">Suspended</option></select></label>
+    </div><div class="form-actions"><button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button><button type="submit" class="btn btn-primary">Save Changes</button></div></form>
+  </div></div>
+
+  <script>
+  function editReg(r){document.getElementById('er-rn').value=r.registration_number;document.getElementById('er-rd').value=r.registration_date;document.getElementById('er-ed').value=r.expiration_date;document.getElementById('er-rs').value=r.registration_status;openModal('edit-reg');}
+  </script>
+  {% endif %}
+
+  {% if page == 'violations' %}
+  <hr class="gold-rule"><h1>Traffic Violations</h1>
+  <p class="subtitle">Record and manage traffic violations</p>
+  <div class="toolbar"><button class="btn btn-primary" onclick="openModal('add-viol')">+ Record Violation</button></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>Date</th><th>Time</th><th>Driver</th><th>Plate #</th><th>Type</th><th>Fine</th><th>Status</th><th>Location</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for r in rows %}<tr>
+      <td class="mono">{{ r.traffic_violation_id }}</td><td>{{ r.date }}</td><td>{{ r.time }}</td>
+      <td>{{ r.driver_first_name }} {{ r.driver_last_name }}</td>
+      <td class="mono">{{ r.plate_number }}</td><td>{{ r.violation_type or '—' }}</td>
+      <td style="font-variant-numeric:tabular-nums">₱{{ "%.2f" | format(r.total_fine_amount) }}</td>
+      <td><span class="badge {{ r.violation_status }}">{{ r.violation_status }}</span></td>
+      <td>{{ r.location }}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick='editViol({{ r | tojson }})'>Edit</button>
+        <a class="btn btn-sm btn-danger" href="/violations/delete/{{ r.traffic_violation_id }}" onclick="return confirm('Delete?')">Del</a>
+      </td>
+    </tr>{% endfor %}
+    {% if not rows %}<tr><td colspan="10" class="empty">No violations found.</td></tr>{% endif %}
+    </tbody>
+  </table></div>
+
+  <div class="modal-backdrop" id="add-viol"><div class="modal"><h2>Record Traffic Violation</h2>
+    <form method="POST" action="/violations/add"><div class="form-grid">
+      <label class="field">Driver <select name="license_number" required>{% for d in drivers_list %}<option value="{{ d.license_number }}">{{ d.first_name }} {{ d.last_name }} ({{ d.license_number }})</option>{% endfor %}</select></label>
+      <label class="field">Vehicle <select name="vehicle_key" required>{% for v in vehicles_list %}<option value="{{ v.plate_number }}|{{ v.chassis_number }}">{{ v.make }} {{ v.model }} ({{ v.plate_number }})</option>{% endfor %}</select></label>
+      <label class="field">Violation Type <select name="violation_type"><option>Overspeeding</option><option>Reckless Driving</option><option>Illegal Parking</option><option>No Helmet</option><option>Driving Under the Influence</option><option>No License</option><option>Disregarding Traffic Signs</option><option>Obstruction</option></select></label>
+      <label class="field">Fine Amount (₱) <input type="number" name="total_fine_amount" step="0.01" min="0" required></label>
+      <label class="field">Date <input type="date" name="date" required></label>
+      <label class="field">Time <input type="time" name="time" required></label>
+      <label class="field full">Location <input name="location" required placeholder="e.g. EDSA, Quezon City"></label>
+      <label class="field">Officer <input name="apprehending_officer" placeholder="Optional"></label>
+      <label class="field">Status <select name="violation_status"><option value="unpaid">Unpaid</option><option value="paid">Paid</option><option value="contested">Contested</option></select></label>
+    </div><div class="form-actions"><button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button><button type="submit" class="btn btn-primary">Record Violation</button></div></form>
+  </div></div>
+
+  <div class="modal-backdrop" id="edit-viol"><div class="modal"><h2>Edit Violation</h2>
+    <form method="POST" action="/violations/edit"><input type="hidden" name="traffic_violation_id" id="evl-id"><div class="form-grid">
+      <label class="field">Violation Type <select name="violation_type" id="evl-vt"><option>Overspeeding</option><option>Reckless Driving</option><option>Illegal Parking</option><option>No Helmet</option><option>Driving Under the Influence</option><option>No License</option><option>Disregarding Traffic Signs</option><option>Obstruction</option></select></label>
+      <label class="field">Fine Amount (₱) <input type="number" name="total_fine_amount" step="0.01" min="0" required id="evl-fa"></label>
+      <label class="field">Date <input type="date" name="date" required id="evl-dt"></label>
+      <label class="field">Time <input type="time" name="time" required id="evl-tm"></label>
+      <label class="field full">Location <input name="location" required id="evl-loc"></label>
+      <label class="field">Officer <input name="apprehending_officer" id="evl-of"></label>
+      <label class="field">Status <select name="violation_status" id="evl-vs"><option value="unpaid">Unpaid</option><option value="paid">Paid</option><option value="contested">Contested</option></select></label>
+    </div><div class="form-actions"><button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button><button type="submit" class="btn btn-primary">Save Changes</button></div></form>
+  </div></div>
+
+  <script>
+  function editViol(r){document.getElementById('evl-id').value=r.traffic_violation_id;document.getElementById('evl-vt').value=r.violation_type||'Overspeeding';document.getElementById('evl-fa').value=r.total_fine_amount;document.getElementById('evl-dt').value=r.date;document.getElementById('evl-tm').value=r.time;document.getElementById('evl-loc').value=r.location;document.getElementById('evl-of').value=r.apprehending_officer||'';document.getElementById('evl-vs').value=r.violation_status;openModal('edit-viol');}
+  </script>
+  {% endif %}
+
+  {% if page == 'reports' %}
+  <hr class="gold-rule"><h1>Reports</h1>
+  <p class="subtitle">Generate SQL-based analytical reports</p>
+
+  <div class="report-card"><div class="report-num">REPORT 01</div><h3>Drivers Filtered by License Type, Status, Age, Sex</h3>
+    <form class="inline-form" action="/reports/drivers_filtered">
+      <label class="field">License Type <select name="license_type"><option value="">All</option><option>Non-Professional</option><option>Professional</option><option>Student Permit</option></select></label>
+      <label class="field">Status <select name="license_status"><option value="">All</option><option value="valid">Valid</option><option value="expired">Expired</option><option value="suspended">Suspended</option></select></label>
+      <label class="field">Sex <select name="sex"><option value="">All</option><option value="M">M</option><option value="F">F</option></select></label>
+      <label class="field">Min Age <input type="number" name="age_min" min="0" placeholder="18"></label>
+      <label class="field">Max Age <input type="number" name="age_max" min="0" placeholder="65"></label>
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+  <div class="report-card"><div class="report-num">REPORT 02</div><h3>Vehicles Owned by a Driver</h3>
+    <form class="inline-form" action="/reports/vehicles_by_driver">
+      <label class="field">License Number <input name="license_number" required placeholder="N01-90-123456"></label>
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+  <div class="report-card"><div class="report-num">REPORT 03</div><h3>Expired Vehicle Registrations (as of date)</h3>
+    <form class="inline-form" action="/reports/expired_registrations">
+      <label class="field">As of Date <input type="date" name="as_of_date" required></label>
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+  <div class="report-card"><div class="report-num">REPORT 04</div><h3>Drivers with Expired / Suspended Licenses</h3>
+    <form class="inline-form" action="/reports/invalid_licenses">
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+  <div class="report-card"><div class="report-num">REPORT 05</div><h3>Violations by a Driver (Date Range)</h3>
+    <form class="inline-form" action="/reports/violations_by_driver">
+      <label class="field">License Number <input name="license_number" required placeholder="N01-90-123456"></label>
+      <label class="field">From <input type="date" name="date_from" required></label>
+      <label class="field">To <input type="date" name="date_to" required></label>
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+  <div class="report-card"><div class="report-num">REPORT 06</div><h3>Violations per Type (by Year)</h3>
+    <form class="inline-form" action="/reports/violations_per_type">
+      <label class="field">Year <input type="number" name="year" min="2020" max="2030" required placeholder="2025"></label>
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+  <div class="report-card"><div class="report-num">REPORT 07</div><h3>Vehicles in Violations (by City / Region)</h3>
+    <form class="inline-form" action="/reports/vehicles_in_violations">
+      <label class="field">City / Location <input name="location" required placeholder="Quezon City"></label>
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if page == 'report_result' %}
+  <a href="/reports" class="back-link">← Back to Reports</a>
+  <hr class="gold-rule"><h1>{{ report_title }}</h1>
+  <p class="subtitle">{{ rows | length }} record(s) found</p>
+  {% if rows %}
+  <div class="table-wrap"><table>
+    <thead><tr>{% for key in rows[0].keys() %}<th>{{ key | replace('_',' ') | title }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for r in rows %}<tr>{% for val in r.values() %}
+      <td>{% if val is none %}—{% elif 'status' in (r.keys() | list)[loop.index0] %}<span class="badge {{ val }}">{{ val }}</span>{% else %}{{ val }}{% endif %}</td>
+    {% endfor %}</tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="empty">No matching records found for this report.</div>{% endif %}
+  {% endif %}
+
+</div>
+
+<script>
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModals(){document.querySelectorAll('.modal-backdrop').forEach(m=>m.classList.remove('open'));}
+document.querySelectorAll('.modal-backdrop').forEach(el=>{el.addEventListener('click',e=>{if(e.target===el)closeModals();});});
+</script>
+</body>
+</html>
