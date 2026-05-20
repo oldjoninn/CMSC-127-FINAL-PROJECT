@@ -125,10 +125,18 @@
 <script>
 function editViol(r) {
   const set = (id, v) => { document.getElementById(id).value = v || ''; };
+
+  const setDate = (id, v) => {
+    if (!v) { set(id, ''); return; }
+    const d = new Date(v);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    set(id, d.toISOString().split('T')[0]);
+  };
+
   set('evl-id',  r.traffic_violation_id);
   set('evl-vt',  r.violation_type || 'Overspeeding');
   set('evl-fa',  r.total_fine_amount);
-  set('evl-dt',  r.date);
+  setDate('evl-dt',  r.date);
   set('evl-tm',  r.time);
   set('evl-loc', r.location);
   set('evl-of',  r.apprehending_officer);

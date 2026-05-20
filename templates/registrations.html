@@ -104,9 +104,17 @@
 <script>
 function editReg(r) {
   const set = (id, v) => { document.getElementById(id).value = v || ''; };
+
+  const setDate = (id, v) => {
+    if (!v) { set(id, ''); return; }
+    const d = new Date(v);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    set(id, d.toISOString().split('T')[0]);
+  };
+
   set('er-rn', r.registration_number);
-  set('er-rd', r.registration_date);
-  set('er-ed', r.expiration_date);
+  setDate('er-rd', r.registration_date);
+  setDate('er-ed', r.expiration_date);
   set('er-rs', r.registration_status);
   openModal('edit-reg');
 }

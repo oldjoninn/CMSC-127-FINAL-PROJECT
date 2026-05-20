@@ -71,17 +71,26 @@
 <script>
 function editDriver(r) {
   const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v || ''; };
+
+  // Helper to format HTTP date strings into YYYY-MM-DD
+  const setDate = (id, v) => {
+    if (!v) { set(id, ''); return; }
+    const d = new Date(v);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    set(id, d.toISOString().split('T')[0]);
+  };
+
   set('ed-ln',  r.license_number);
   set('ed-fn',  r.first_name);
   set('ed-mn',  r.middle_name);
   set('ed-lnm', r.last_name);
-  set('ed-dob', r.date_of_birth);
+  setDate('ed-dob', r.date_of_birth);
   set('ed-sex', r.sex);
   set('ed-addr',r.address);
   set('ed-lt',  r.license_type);
   set('ed-ls',  r.license_status);
-  set('ed-isd', r.license_issuance_date);
-  set('ed-exd', r.license_expiration_date);
+  setDate('ed-isd', r.license_issuance_date);
+  setDate('ed-exd', r.license_expiration_date);
   openModal('edit-driver');
 }
 </script>
