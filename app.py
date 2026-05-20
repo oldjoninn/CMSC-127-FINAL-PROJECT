@@ -5,32 +5,36 @@ CMSC 127 Milestone 3
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 import mysql.connector
-from mysql.connector import Error
-from datetime import date
-from dotenv import load_dotenv
+from mysql.connector import Error, IntegrityError
+from datetime import date, datetime
 import os
-load_dotenv()
+import re
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 app = Flask(__name__)
 app.secret_key = "lto_cmsc127_secret"
 
+
 # ── Database connection ──────────────────────────────────────────────────────
 
 DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
-    "password": os.getenv("DB_PASSWORD", ""),        
-    "database": "lto_db",
+    "host":     os.getenv("DB_HOST", "localhost"),
+    "user":     os.getenv("DB_USER", "root"),
+    "password": os.getenv("DB_PASSWORD", ""),
+    "database": os.getenv("DB_NAME", "lto_db"),
 }
 
 
 def get_db():
-    """Return a new database connection."""
     return mysql.connector.connect(**DB_CONFIG)
 
 
 def query(sql, params=None, fetchone=False):
-    """Run a SELECT and return rows as list[dict]."""
     conn = get_db()
     cur = conn.cursor(dictionary=True)
     cur.execute(sql, params or ())
@@ -41,7 +45,6 @@ def query(sql, params=None, fetchone=False):
 
 
 def execute(sql, params=None):
-    """Run INSERT / UPDATE / DELETE."""
     conn = get_db()
     cur = conn.cursor()
     cur.execute(sql, params or ())
@@ -50,6 +53,112 @@ def execute(sql, params=None):
     cur.close()
     conn.close()
     return last_id
+
+
+# ── Validation helpers ───────────────────────────────────────────────────────
+
+VALID_SEX            = {"M", "F"}
+VALID_LICENSE_TYPES  = {"Non-Professional", "Professional", "Student Permit"}
+VALID_LICENSE_STATUS = {"valid", "expired", "suspended", "revoked"}
+VALID_OWNERSHIP      = {"private", "public"}
+VALID_REG_STATUS     = {"active", "expired", "suspended", "revoked"}
+VALID_VIOL_STATUS    = {"unpaid", "paid", "contested", "dismissed"}
+
+
+class ValidationError(Exception):
+    """Raised on form validation failure."""
+
+
+def clean(value, *, lower=False):
+    """Trim a form value and optionally lowercase it. Empty string becomes None."""
+    if value is None:
+        return None
+    v = str(value).strip()
+    if not v:
+        return None
+    return v.lower() if lower else v
+
+
+def require(value, field):
+    v = clean(value)
+    if v is None:
+        raise ValidationError(f"{field} is required.")
+    return v
+
+
+def parse_date(s, field):
+    s = clean(s)
+    if s is None:
+        raise ValidationError(f"{field} is required.")
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except ValueError:
+        raise ValidationError(f"{field} must be a valid date (YYYY-MM-DD).")
+
+
+def parse_time(s, field):
+    s = clean(s)
+    if s is None:
+        raise ValidationError(f"{field} is required.")
+    for fmt in ("%H:%M", "%H:%M:%S"):
+        try:
+            return datetime.strptime(s, fmt).time()
+        except ValueError:
+            continue
+    raise ValidationError(f"{field} must be a valid time (HH:MM).")
+
+
+def parse_int(s, field, *, min_v=None, max_v=None):
+    s = clean(s)
+    if s is None:
+        raise ValidationError(f"{field} is required.")
+    try:
+        n = int(s)
+    except ValueError:
+        raise ValidationError(f"{field} must be a whole number.")
+    if min_v is not None and n < min_v:
+        raise ValidationError(f"{field} must be ≥ {min_v}.")
+    if max_v is not None and n > max_v:
+        raise ValidationError(f"{field} must be ≤ {max_v}.")
+    return n
+
+
+def parse_decimal(s, field, *, min_v=None):
+    s = clean(s)
+    if s is None:
+        raise ValidationError(f"{field} is required.")
+    try:
+        n = float(s)
+    except ValueError:
+        raise ValidationError(f"{field} must be a number.")
+    if min_v is not None and n < min_v:
+        raise ValidationError(f"{field} must be ≥ {min_v}.")
+    return n
+
+
+def must_be_in(value, allowed, field):
+    if value not in allowed:
+        raise ValidationError(
+            f"{field} must be one of: {', '.join(sorted(allowed))}."
+        )
+    return value
+
+
+def db_error_message(e):
+    """Translate common MySQL errors into user-friendly text."""
+    msg = str(e)
+    if isinstance(e, IntegrityError):
+        if "Duplicate entry" in msg:
+            return "Duplicate record — that identifier is already in use."
+        if "foreign key constraint fails" in msg.lower():
+            if "REFERENCES `driver`" in msg or "fk_violation_driver" in msg or "fk_vehicle_driver" in msg:
+                return "Referenced driver does not exist or is still in use by other records."
+            if "fk_registration_vehicle" in msg or "fk_violation_vehicle" in msg:
+                return "Referenced vehicle does not exist or is still in use by other records."
+            return "Cannot complete operation: related records still exist or referenced row missing."
+        if "chk_" in msg or "CHECK constraint" in msg:
+            return f"Value violates a database constraint: {msg}"
+    return f"Database error: {msg}"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -65,53 +174,117 @@ def index():
 
 @app.route("/drivers")
 def drivers():
-    rows = query("SELECT *, TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) AS age FROM driver ORDER BY last_name, first_name")
-    return render_template("index.html", page="drivers", rows=rows)
+    q = clean(request.args.get("q"))
+    sql = """SELECT *, TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) AS age
+             FROM driver"""
+    params = []
+    if q:
+        sql += """ WHERE license_number LIKE %s
+                      OR first_name LIKE %s
+                      OR last_name LIKE %s
+                      OR address LIKE %s"""
+        like = f"%{q}%"
+        params = [like, like, like, like]
+    sql += " ORDER BY last_name, first_name"
+    rows = query(sql, params)
+    return render_template("index.html", page="drivers", rows=rows, search=q or "")
+
+
+def _validate_driver(f, *, is_edit=False):
+    license_number = require(f.get("license_number"), "License number")
+    if not re.match(r"^[A-Za-z0-9 \-]{4,20}$", license_number):
+        raise ValidationError("License number format is invalid (4–20 chars, alphanumeric/dash/space).")
+    first_name = require(f.get("first_name"), "First name")
+    last_name  = require(f.get("last_name"),  "Last name")
+    middle_name = clean(f.get("middle_name"))
+    dob = parse_date(f.get("date_of_birth"), "Date of birth")
+    sex = must_be_in(require(f.get("sex"), "Sex").upper()[:1], VALID_SEX, "Sex")
+    address = require(f.get("address"), "Address")
+    license_type   = must_be_in(require(f.get("license_type"),   "License type"),   VALID_LICENSE_TYPES,  "License type")
+    license_status = must_be_in(require(f.get("license_status"), "License status").lower(), VALID_LICENSE_STATUS, "License status")
+    issued  = parse_date(f.get("license_issuance_date"),   "Issuance date")
+    expires = parse_date(f.get("license_expiration_date"), "Expiration date")
+
+    if dob > date.today():
+        raise ValidationError("Date of birth cannot be in the future.")
+    age = (date.today() - dob).days // 365
+    if age < 16:
+        raise ValidationError("Driver must be at least 16 years old.")
+    if age > 120:
+        raise ValidationError("Date of birth is unrealistic.")
+    if expires < issued:
+        raise ValidationError("Expiration date must be on or after issuance date.")
+    if issued < dob:
+        raise ValidationError("Issuance date cannot precede date of birth.")
+
+    return dict(
+        license_number=license_number, first_name=first_name, middle_name=middle_name,
+        last_name=last_name, date_of_birth=dob, sex=sex, address=address,
+        license_type=license_type, license_status=license_status,
+        license_issuance_date=issued, license_expiration_date=expires,
+    )
 
 
 @app.route("/drivers/add", methods=["POST"])
 def drivers_add():
-    f = request.form
-    execute(
-        """INSERT INTO driver
-           (license_number, first_name, middle_name, last_name,
-            date_of_birth, sex, address, license_type,
-            license_status, license_issuance_date, license_expiration_date)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-        (f["license_number"], f["first_name"], f.get("middle_name") or None,
-         f["last_name"], f["date_of_birth"], f["sex"], f["address"],
-         f["license_type"], f["license_status"],
-         f["license_issuance_date"], f["license_expiration_date"]),
-    )
-    flash("Driver added successfully.", "success")
+    try:
+        d = _validate_driver(request.form)
+        execute(
+            """INSERT INTO driver
+               (license_number, first_name, middle_name, last_name,
+                date_of_birth, sex, address, license_type,
+                license_status, license_issuance_date, license_expiration_date)
+               VALUES (%(license_number)s,%(first_name)s,%(middle_name)s,%(last_name)s,
+                       %(date_of_birth)s,%(sex)s,%(address)s,%(license_type)s,
+                       %(license_status)s,%(license_issuance_date)s,%(license_expiration_date)s)""",
+            d,
+        )
+        flash("Driver added successfully.", "success")
+    except ValidationError as e:
+        flash(str(e), "danger")
+    except Error as e:
+        flash(db_error_message(e), "danger")
     return redirect(url_for("drivers"))
 
 
 @app.route("/drivers/edit", methods=["POST"])
 def drivers_edit():
-    f = request.form
-    execute(
-        """UPDATE driver SET
-           first_name=%s, middle_name=%s, last_name=%s,
-           date_of_birth=%s, sex=%s, address=%s, license_type=%s,
-           license_status=%s, license_issuance_date=%s, license_expiration_date=%s
-           WHERE license_number=%s""",
-        (f["first_name"], f.get("middle_name") or None, f["last_name"],
-         f["date_of_birth"], f["sex"], f["address"], f["license_type"],
-         f["license_status"], f["license_issuance_date"],
-         f["license_expiration_date"], f["license_number"]),
-    )
-    flash("Driver updated.", "success")
+    try:
+        d = _validate_driver(request.form, is_edit=True)
+        existing = query("SELECT 1 FROM driver WHERE license_number=%s",
+                         (d["license_number"],), fetchone=True)
+        if not existing:
+            raise ValidationError("Driver not found.")
+        execute(
+            """UPDATE driver SET
+               first_name=%(first_name)s, middle_name=%(middle_name)s, last_name=%(last_name)s,
+               date_of_birth=%(date_of_birth)s, sex=%(sex)s, address=%(address)s,
+               license_type=%(license_type)s, license_status=%(license_status)s,
+               license_issuance_date=%(license_issuance_date)s,
+               license_expiration_date=%(license_expiration_date)s
+               WHERE license_number=%(license_number)s""",
+            d,
+        )
+        flash("Driver updated.", "success")
+    except ValidationError as e:
+        flash(str(e), "danger")
+    except Error as e:
+        flash(db_error_message(e), "danger")
     return redirect(url_for("drivers"))
 
 
 @app.route("/drivers/delete/<license_number>")
 def drivers_delete(license_number):
     try:
+        existing = query("SELECT 1 FROM driver WHERE license_number=%s",
+                         (license_number,), fetchone=True)
+        if not existing:
+            flash("Driver not found.", "danger")
+            return redirect(url_for("drivers"))
         execute("DELETE FROM driver WHERE license_number=%s", (license_number,))
         flash("Driver deleted.", "success")
     except Error as e:
-        flash(f"Cannot delete: {e}", "danger")
+        flash(db_error_message(e), "danger")
     return redirect(url_for("drivers"))
 
 
@@ -119,57 +292,119 @@ def drivers_delete(license_number):
 
 @app.route("/vehicles")
 def vehicles():
-    rows = query("""
-        SELECT v.*, d.first_name AS owner_first_name, d.last_name AS owner_last_name
-        FROM vehicle v JOIN driver d ON v.license_number = d.license_number
-        ORDER BY v.plate_number
-    """)
+    q = clean(request.args.get("q"))
+    sql = """SELECT v.*, d.first_name AS owner_first_name, d.last_name AS owner_last_name
+             FROM vehicle v JOIN driver d ON v.license_number = d.license_number"""
+    params = []
+    if q:
+        sql += """ WHERE v.plate_number LIKE %s
+                      OR v.chassis_number LIKE %s
+                      OR v.make LIKE %s
+                      OR v.model LIKE %s
+                      OR d.last_name LIKE %s"""
+        like = f"%{q}%"
+        params = [like, like, like, like, like]
+    sql += " ORDER BY v.plate_number"
+    rows = query(sql, params)
     drivers_list = query("SELECT license_number, first_name, last_name FROM driver ORDER BY last_name")
-    return render_template("index.html", page="vehicles", rows=rows, drivers_list=drivers_list)
+    return render_template("index.html", page="vehicles",
+                           rows=rows, drivers_list=drivers_list, search=q or "")
+
+
+def _validate_vehicle(f, *, is_edit=False):
+    plate   = require(f.get("plate_number"), "Plate number").upper()
+    chassis = require(f.get("chassis_number"), "Chassis number")
+    engine  = require(f.get("engine_number"), "Engine number")
+    if not re.match(r"^[A-Z0-9 \-]{2,15}$", plate):
+        raise ValidationError("Plate number format is invalid.")
+    vehicle_type   = require(f.get("vehicle_type"), "Vehicle type")
+    ownership_type = must_be_in(require(f.get("ownership_type"), "Ownership").lower(),
+                                VALID_OWNERSHIP, "Ownership")
+    make  = require(f.get("make"),  "Make")
+    model = require(f.get("model"), "Model")
+    year  = parse_int(f.get("year"), "Year", min_v=1900, max_v=date.today().year + 1)
+    color = require(f.get("color"), "Color")
+    franchise = clean(f.get("franchise_number"))
+    license_number = require(f.get("license_number"), "Owner license number")
+
+    if ownership_type == "public" and not franchise:
+        raise ValidationError("Public vehicles must have a franchise number.")
+    if ownership_type == "private" and franchise:
+        raise ValidationError("Private vehicles must not have a franchise number.")
+
+    if not query("SELECT 1 FROM driver WHERE license_number=%s",
+                 (license_number,), fetchone=True):
+        raise ValidationError("Owner license number does not exist.")
+
+    return dict(
+        plate_number=plate, chassis_number=chassis, engine_number=engine,
+        vehicle_type=vehicle_type, ownership_type=ownership_type,
+        make=make, model=model, year=year, color=color,
+        franchise_number=franchise, license_number=license_number,
+    )
 
 
 @app.route("/vehicles/add", methods=["POST"])
 def vehicles_add():
-    f = request.form
-    execute(
-        """INSERT INTO vehicle
-           (plate_number, chassis_number, engine_number, vehicle_type,
-            ownership_type, make, model, year, color, franchise_number, license_number)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-        (f["plate_number"], f["chassis_number"], f["engine_number"],
-         f["vehicle_type"], f["ownership_type"], f["make"], f["model"],
-         int(f["year"]), f["color"], f.get("franchise_number") or None,
-         f["license_number"]),
-    )
-    flash("Vehicle added.", "success")
+    try:
+        v = _validate_vehicle(request.form)
+        execute(
+            """INSERT INTO vehicle
+               (plate_number, chassis_number, engine_number, vehicle_type,
+                ownership_type, make, model, year, color, franchise_number, license_number)
+               VALUES (%(plate_number)s,%(chassis_number)s,%(engine_number)s,%(vehicle_type)s,
+                       %(ownership_type)s,%(make)s,%(model)s,%(year)s,%(color)s,
+                       %(franchise_number)s,%(license_number)s)""",
+            v,
+        )
+        flash("Vehicle added.", "success")
+    except ValidationError as e:
+        flash(str(e), "danger")
+    except Error as e:
+        flash(db_error_message(e), "danger")
     return redirect(url_for("vehicles"))
 
 
 @app.route("/vehicles/edit", methods=["POST"])
 def vehicles_edit():
-    f = request.form
-    execute(
-        """UPDATE vehicle SET
-           engine_number=%s, vehicle_type=%s, ownership_type=%s,
-           make=%s, model=%s, year=%s, color=%s, franchise_number=%s, license_number=%s
-           WHERE plate_number=%s AND chassis_number=%s""",
-        (f["engine_number"], f["vehicle_type"], f["ownership_type"],
-         f["make"], f["model"], int(f["year"]), f["color"],
-         f.get("franchise_number") or None, f["license_number"],
-         f["plate_number"], f["chassis_number"]),
-    )
-    flash("Vehicle updated.", "success")
+    try:
+        v = _validate_vehicle(request.form, is_edit=True)
+        if not query(
+            "SELECT 1 FROM vehicle WHERE plate_number=%s AND chassis_number=%s",
+            (v["plate_number"], v["chassis_number"]), fetchone=True
+        ):
+            raise ValidationError("Vehicle not found.")
+        execute(
+            """UPDATE vehicle SET
+               engine_number=%(engine_number)s, vehicle_type=%(vehicle_type)s,
+               ownership_type=%(ownership_type)s, make=%(make)s, model=%(model)s,
+               year=%(year)s, color=%(color)s, franchise_number=%(franchise_number)s,
+               license_number=%(license_number)s
+               WHERE plate_number=%(plate_number)s AND chassis_number=%(chassis_number)s""",
+            v,
+        )
+        flash("Vehicle updated.", "success")
+    except ValidationError as e:
+        flash(str(e), "danger")
+    except Error as e:
+        flash(db_error_message(e), "danger")
     return redirect(url_for("vehicles"))
 
 
 @app.route("/vehicles/delete/<plate_number>/<chassis_number>")
 def vehicles_delete(plate_number, chassis_number):
     try:
+        if not query(
+            "SELECT 1 FROM vehicle WHERE plate_number=%s AND chassis_number=%s",
+            (plate_number, chassis_number), fetchone=True
+        ):
+            flash("Vehicle not found.", "danger")
+            return redirect(url_for("vehicles"))
         execute("DELETE FROM vehicle WHERE plate_number=%s AND chassis_number=%s",
                 (plate_number, chassis_number))
         flash("Vehicle deleted.", "success")
     except Error as e:
-        flash(f"Cannot delete: {e}", "danger")
+        flash(db_error_message(e), "danger")
     return redirect(url_for("vehicles"))
 
 
@@ -177,56 +412,113 @@ def vehicles_delete(plate_number, chassis_number):
 
 @app.route("/registrations")
 def registrations():
-    rows = query("""
-        SELECT vr.*, v.make, v.model, v.year AS vehicle_year,
-               d.first_name AS owner_first_name, d.last_name AS owner_last_name
-        FROM vehicle_registration vr
-        JOIN vehicle v ON vr.plate_number = v.plate_number AND vr.chassis_number = v.chassis_number
-        JOIN driver d ON v.license_number = d.license_number
-        ORDER BY vr.registration_date DESC
+    q = clean(request.args.get("q"))
+    sql = """SELECT vr.*, v.make, v.model, v.year AS vehicle_year,
+                    d.first_name AS owner_first_name, d.last_name AS owner_last_name
+             FROM vehicle_registration vr
+             JOIN vehicle v ON vr.plate_number = v.plate_number
+                           AND vr.chassis_number = v.chassis_number
+             JOIN driver d ON v.license_number = d.license_number"""
+    params = []
+    if q:
+        sql += """ WHERE vr.registration_number LIKE %s
+                      OR vr.plate_number LIKE %s
+                      OR d.last_name LIKE %s"""
+        like = f"%{q}%"
+        params = [like, like, like]
+    sql += " ORDER BY vr.registration_date DESC"
+    rows = query(sql, params)
+    vehicles_list = query("""
+        SELECT plate_number, chassis_number, make, model
+        FROM vehicle ORDER BY plate_number
     """)
-    vehicles_list = query("SELECT plate_number, chassis_number, make, model FROM vehicle ORDER BY plate_number")
-    return render_template("index.html", page="registrations", rows=rows, vehicles_list=vehicles_list)
+    return render_template("index.html", page="registrations",
+                           rows=rows, vehicles_list=vehicles_list, search=q or "")
+
+
+def _validate_registration(f, *, is_edit=False):
+    reg_num = require(f.get("registration_number"), "Registration number")
+    reg_date = parse_date(f.get("registration_date"), "Registration date")
+    exp_date = parse_date(f.get("expiration_date"),   "Expiration date")
+    status   = must_be_in(require(f.get("registration_status"), "Status").lower(),
+                          VALID_REG_STATUS, "Status")
+    if exp_date < reg_date:
+        raise ValidationError("Expiration date must be on or after registration date.")
+
+    out = dict(registration_number=reg_num, registration_date=reg_date,
+               expiration_date=exp_date, registration_status=status)
+
+    if not is_edit:
+        vk = require(f.get("vehicle_key"), "Vehicle")
+        if "|" not in vk:
+            raise ValidationError("Invalid vehicle selection.")
+        plate, chassis = vk.split("|", 1)
+        plate, chassis = plate.strip(), chassis.strip()
+        if not query(
+            "SELECT 1 FROM vehicle WHERE plate_number=%s AND chassis_number=%s",
+            (plate, chassis), fetchone=True
+        ):
+            raise ValidationError("Selected vehicle does not exist.")
+        out["plate_number"] = plate
+        out["chassis_number"] = chassis
+    return out
 
 
 @app.route("/registrations/add", methods=["POST"])
 def registrations_add():
-    f = request.form
-    plate, chassis = f["vehicle_key"].split("|")
-    execute(
-        """INSERT INTO vehicle_registration
-           (registration_number, registration_date, expiration_date,
-            registration_status, plate_number, chassis_number)
-           VALUES (%s,%s,%s,%s,%s,%s)""",
-        (f["registration_number"], f["registration_date"],
-         f["expiration_date"], f["registration_status"], plate, chassis),
-    )
-    flash("Registration added.", "success")
+    try:
+        r = _validate_registration(request.form)
+        execute(
+            """INSERT INTO vehicle_registration
+               (registration_number, registration_date, expiration_date,
+                registration_status, plate_number, chassis_number)
+               VALUES (%(registration_number)s,%(registration_date)s,%(expiration_date)s,
+                       %(registration_status)s,%(plate_number)s,%(chassis_number)s)""",
+            r,
+        )
+        flash("Registration added.", "success")
+    except ValidationError as e:
+        flash(str(e), "danger")
+    except Error as e:
+        flash(db_error_message(e), "danger")
     return redirect(url_for("registrations"))
 
 
 @app.route("/registrations/edit", methods=["POST"])
 def registrations_edit():
-    f = request.form
-    execute(
-        """UPDATE vehicle_registration SET
-           registration_date=%s, expiration_date=%s, registration_status=%s
-           WHERE registration_number=%s""",
-        (f["registration_date"], f["expiration_date"],
-         f["registration_status"], f["registration_number"]),
-    )
-    flash("Registration updated.", "success")
+    try:
+        r = _validate_registration(request.form, is_edit=True)
+        if not query("SELECT 1 FROM vehicle_registration WHERE registration_number=%s",
+                     (r["registration_number"],), fetchone=True):
+            raise ValidationError("Registration not found.")
+        execute(
+            """UPDATE vehicle_registration SET
+               registration_date=%(registration_date)s,
+               expiration_date=%(expiration_date)s,
+               registration_status=%(registration_status)s
+               WHERE registration_number=%(registration_number)s""",
+            r,
+        )
+        flash("Registration updated.", "success")
+    except ValidationError as e:
+        flash(str(e), "danger")
+    except Error as e:
+        flash(db_error_message(e), "danger")
     return redirect(url_for("registrations"))
 
 
 @app.route("/registrations/delete/<registration_number>")
 def registrations_delete(registration_number):
     try:
+        if not query("SELECT 1 FROM vehicle_registration WHERE registration_number=%s",
+                     (registration_number,), fetchone=True):
+            flash("Registration not found.", "danger")
+            return redirect(url_for("registrations"))
         execute("DELETE FROM vehicle_registration WHERE registration_number=%s",
                 (registration_number,))
         flash("Registration deleted.", "success")
     except Error as e:
-        flash(f"Cannot delete: {e}", "danger")
+        flash(db_error_message(e), "danger")
     return redirect(url_for("registrations"))
 
 
@@ -234,81 +526,155 @@ def registrations_delete(registration_number):
 
 @app.route("/violations")
 def violations():
-    rows = query("""
-        SELECT tv.*, tvt.violation_type,
-               d.first_name AS driver_first_name, d.last_name AS driver_last_name
-        FROM traffic_violation tv
-        LEFT JOIN traffic_violation_type tvt ON tv.traffic_violation_id = tvt.traffic_violation_id
-        JOIN driver d ON tv.license_number = d.license_number
-        ORDER BY tv.date DESC, tv.time DESC
-    """)
+    q = clean(request.args.get("q"))
+    sql = """SELECT tv.*, tvt.violation_type,
+                    d.first_name AS driver_first_name, d.last_name AS driver_last_name
+             FROM traffic_violation tv
+             LEFT JOIN traffic_violation_type tvt
+                    ON tv.traffic_violation_id = tvt.traffic_violation_id
+             JOIN driver d ON tv.license_number = d.license_number"""
+    params = []
+    if q:
+        sql += """ WHERE tv.plate_number LIKE %s
+                      OR tv.location LIKE %s
+                      OR d.last_name LIKE %s
+                      OR tvt.violation_type LIKE %s"""
+        like = f"%{q}%"
+        params = [like, like, like, like]
+    sql += " ORDER BY tv.date DESC, tv.time DESC"
+    rows = query(sql, params)
 
-    # Convert timedelta to string so Jinja's tojson filter can serialize it
     for r in rows:
         if hasattr(r.get("time"), "total_seconds"):
             r["time"] = str(r["time"])
 
-    drivers_list = query("SELECT license_number, first_name, last_name FROM driver ORDER BY last_name")
+    drivers_list  = query("SELECT license_number, first_name, last_name FROM driver ORDER BY last_name")
     vehicles_list = query("SELECT plate_number, chassis_number, make, model FROM vehicle ORDER BY plate_number")
     return render_template("index.html", page="violations", rows=rows,
-                           drivers_list=drivers_list, vehicles_list=vehicles_list)
+                           drivers_list=drivers_list, vehicles_list=vehicles_list,
+                           search=q or "")
+
+
+def _validate_violation(f, *, is_edit=False):
+    status = must_be_in(require(f.get("violation_status"), "Violation status").lower(),
+                        VALID_VIOL_STATUS, "Violation status")
+    fine     = parse_decimal(f.get("total_fine_amount"), "Fine amount", min_v=0)
+    location = require(f.get("location"), "Location")
+    d        = parse_date(f.get("date"), "Date")
+    t        = parse_time(f.get("time"), "Time")
+
+    if d > date.today():
+        raise ValidationError("Violation date cannot be in the future.")
+
+    out = dict(
+        violation_status=status,
+        apprehending_officer=clean(f.get("apprehending_officer")),
+        total_fine_amount=fine, location=location, date=d, time=t,
+        violation_type=clean(f.get("violation_type")),
+    )
+
+    if not is_edit:
+        license_number = require(f.get("license_number"), "Driver")
+        if not query("SELECT 1 FROM driver WHERE license_number=%s",
+                     (license_number,), fetchone=True):
+            raise ValidationError("Driver does not exist.")
+        vk = require(f.get("vehicle_key"), "Vehicle")
+        if "|" not in vk:
+            raise ValidationError("Invalid vehicle selection.")
+        plate, chassis = vk.split("|", 1)
+        plate, chassis = plate.strip(), chassis.strip()
+        if not query("SELECT 1 FROM vehicle WHERE plate_number=%s AND chassis_number=%s",
+                     (plate, chassis), fetchone=True):
+            raise ValidationError("Selected vehicle does not exist.")
+        out["license_number"] = license_number
+        out["plate_number"]   = plate
+        out["chassis_number"] = chassis
+    return out
 
 
 @app.route("/violations/add", methods=["POST"])
 def violations_add():
-    f = request.form
-    plate, chassis = f["vehicle_key"].split("|")
-    vid = execute(
-        """INSERT INTO traffic_violation
-           (violation_status, apprehending_officer, total_fine_amount,
-            location, date, time, license_number, plate_number, chassis_number)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-        (f["violation_status"], f.get("apprehending_officer") or None,
-         float(f["total_fine_amount"]), f["location"], f["date"], f["time"],
-         f["license_number"], plate, chassis),
-    )
-    if f.get("violation_type"):
-        execute(
-            "INSERT INTO traffic_violation_type (traffic_violation_id, violation_type) VALUES (%s,%s)",
-            (vid, f["violation_type"]),
+    try:
+        v = _validate_violation(request.form)
+        vt = v.pop("violation_type")
+        vid = execute(
+            """INSERT INTO traffic_violation
+               (violation_status, apprehending_officer, total_fine_amount,
+                location, date, time, license_number, plate_number, chassis_number)
+               VALUES (%(violation_status)s,%(apprehending_officer)s,%(total_fine_amount)s,
+                       %(location)s,%(date)s,%(time)s,%(license_number)s,
+                       %(plate_number)s,%(chassis_number)s)""",
+            v,
         )
-    flash("Violation recorded.", "success")
+        if vt:
+            execute(
+                "INSERT INTO traffic_violation_type (traffic_violation_id, violation_type) VALUES (%s,%s)",
+                (vid, vt),
+            )
+        flash("Violation recorded.", "success")
+    except ValidationError as e:
+        flash(str(e), "danger")
+    except Error as e:
+        flash(db_error_message(e), "danger")
     return redirect(url_for("violations"))
 
 
 @app.route("/violations/edit", methods=["POST"])
 def violations_edit():
-    f = request.form
-    vid = int(f["traffic_violation_id"])
-    execute(
-        """UPDATE traffic_violation SET
-           violation_status=%s, apprehending_officer=%s,
-           total_fine_amount=%s, location=%s, date=%s, time=%s
-           WHERE traffic_violation_id=%s""",
-        (f["violation_status"], f.get("apprehending_officer") or None,
-         float(f["total_fine_amount"]), f["location"], f["date"], f["time"], vid),
-    )
-    # Update violation type
-    existing = query("SELECT * FROM traffic_violation_type WHERE traffic_violation_id=%s", (vid,))
-    if f.get("violation_type"):
-        if existing:
-            execute("UPDATE traffic_violation_type SET violation_type=%s WHERE traffic_violation_id=%s",
-                    (f["violation_type"], vid))
+    try:
+        vid = parse_int(request.form.get("traffic_violation_id"), "Violation ID")
+        if not query("SELECT 1 FROM traffic_violation WHERE traffic_violation_id=%s",
+                     (vid,), fetchone=True):
+            raise ValidationError("Violation not found.")
+        v = _validate_violation(request.form, is_edit=True)
+        vt = v.pop("violation_type")
+        v["traffic_violation_id"] = vid
+        execute(
+            """UPDATE traffic_violation SET
+               violation_status=%(violation_status)s,
+               apprehending_officer=%(apprehending_officer)s,
+               total_fine_amount=%(total_fine_amount)s,
+               location=%(location)s, date=%(date)s, time=%(time)s
+               WHERE traffic_violation_id=%(traffic_violation_id)s""",
+            v,
+        )
+        existing = query(
+            "SELECT violation_type FROM traffic_violation_type WHERE traffic_violation_id=%s",
+            (vid,), fetchone=True
+        )
+        if vt:
+            if existing:
+                execute(
+                    "UPDATE traffic_violation_type SET violation_type=%s WHERE traffic_violation_id=%s",
+                    (vt, vid),
+                )
+            else:
+                execute(
+                    "INSERT INTO traffic_violation_type (traffic_violation_id, violation_type) VALUES (%s,%s)",
+                    (vid, vt),
+                )
         else:
-            execute("INSERT INTO traffic_violation_type (traffic_violation_id, violation_type) VALUES (%s,%s)",
-                    (vid, f["violation_type"]))
-    flash("Violation updated.", "success")
+            execute("DELETE FROM traffic_violation_type WHERE traffic_violation_id=%s", (vid,))
+        flash("Violation updated.", "success")
+    except ValidationError as e:
+        flash(str(e), "danger")
+    except Error as e:
+        flash(db_error_message(e), "danger")
     return redirect(url_for("violations"))
 
 
 @app.route("/violations/delete/<int:vid>")
 def violations_delete(vid):
     try:
+        if not query("SELECT 1 FROM traffic_violation WHERE traffic_violation_id=%s",
+                     (vid,), fetchone=True):
+            flash("Violation not found.", "danger")
+            return redirect(url_for("violations"))
         execute("DELETE FROM traffic_violation_type WHERE traffic_violation_id=%s", (vid,))
         execute("DELETE FROM traffic_violation WHERE traffic_violation_id=%s", (vid,))
         flash("Violation deleted.", "success")
     except Error as e:
-        flash(f"Cannot delete: {e}", "danger")
+        flash(db_error_message(e), "danger")
     return redirect(url_for("violations"))
 
 
@@ -318,17 +684,38 @@ def violations_delete(vid):
 
 @app.route("/reports")
 def reports():
-    return render_template("index.html", page="reports")
+    drivers_list  = query("SELECT license_number, first_name, last_name FROM driver ORDER BY last_name")
+    return render_template("index.html", page="reports", drivers_list=drivers_list)
+
+
+def _render_report(title, report_id, rows, params_used=None, message=None):
+    return render_template(
+        "index.html", page="report_result",
+        report_title=title, report_id=report_id, rows=rows,
+        params_used=params_used or {}, message=message,
+    )
 
 
 @app.route("/reports/drivers_filtered")
 def report_drivers_filtered():
     """Report 1: Drivers filtered by license type, status, age range, sex."""
-    lt = request.args.get("license_type", "")
-    ls = request.args.get("license_status", "")
-    sex = request.args.get("sex", "")
-    age_min = request.args.get("age_min", "")
-    age_max = request.args.get("age_max", "")
+    lt      = clean(request.args.get("license_type"))
+    ls      = clean(request.args.get("license_status"))
+    sex_raw = clean(request.args.get("sex"))
+    sex     = sex_raw.upper()[:1] if sex_raw else None
+    age_min = clean(request.args.get("age_min"))
+    age_max = clean(request.args.get("age_max"))
+
+    try:
+        if lt:  must_be_in(lt, VALID_LICENSE_TYPES,  "License type")
+        if ls:  must_be_in(ls.lower(), VALID_LICENSE_STATUS, "License status")
+        if sex: must_be_in(sex, VALID_SEX, "Sex")
+        age_min_v = parse_int(age_min, "Min age", min_v=0, max_v=150) if age_min else None
+        age_max_v = parse_int(age_max, "Max age", min_v=0, max_v=150) if age_max else None
+        if age_min_v is not None and age_max_v is not None and age_min_v > age_max_v:
+            raise ValidationError("Min age must be ≤ Max age.")
+    except ValidationError as e:
+        return _render_report("Registered Drivers (Filtered)", 1, [], message=str(e))
 
     sql = """SELECT license_number, first_name, middle_name, last_name, sex,
                     TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) AS age,
@@ -338,7 +725,7 @@ def report_drivers_filtered():
     if lt:
         sql += " AND license_type = %s"; params.append(lt)
     if ls:
-        sql += " AND license_status = %s"; params.append(ls)
+        sql += " AND license_status = %s"; params.append(ls.lower())
     if sex:
         sql += " AND sex = %s"; params.append(sex)
     if age_min:
@@ -348,142 +735,234 @@ def report_drivers_filtered():
     sql += " ORDER BY last_name, first_name"
 
     rows = query(sql, params)
-    return render_template("index.html", page="report_result",
-                           report_title="Registered Drivers (Filtered)",
-                           report_id=1, rows=rows)
+    params_used = {k: v for k, v in {
+        "License Type": lt, "Status": ls, "Sex": sex,
+        "Min Age": age_min, "Max Age": age_max
+    }.items() if v}
+    return _render_report("Registered Drivers (Filtered)", 1, rows, params_used)
 
 
 @app.route("/reports/vehicles_by_driver")
 def report_vehicles_by_driver():
     """Report 2: Vehicles owned by a given driver."""
-    ln = request.args.get("license_number", "")
-    rows = []
-    if ln:
-        rows = query("""
-            SELECT v.plate_number, v.chassis_number, v.engine_number,
-                   v.vehicle_type, v.ownership_type, v.make, v.model,
-                   v.year, v.color, v.franchise_number,
-                   d.first_name AS owner_first_name, d.last_name AS owner_last_name
-            FROM vehicle v JOIN driver d ON v.license_number = d.license_number
-            WHERE d.license_number = %s ORDER BY v.plate_number
-        """, (ln,))
-    return render_template("index.html", page="report_result",
-                           report_title=f"Vehicles Owned by Driver {ln}",
-                           report_id=2, rows=rows)
+    ln = clean(request.args.get("license_number"))
+    if not ln:
+        return _render_report("Vehicles Owned by Driver", 2, [],
+                              message="Please provide a license number.")
+    drv = query("SELECT first_name, last_name FROM driver WHERE license_number=%s",
+                (ln,), fetchone=True)
+    if not drv:
+        return _render_report(f"Vehicles Owned by Driver {ln}", 2, [],
+                              message=f"No driver found with license number '{ln}'.")
+    rows = query("""
+        SELECT v.plate_number, v.chassis_number, v.engine_number,
+               v.vehicle_type, v.ownership_type, v.make, v.model,
+               v.year, v.color, v.franchise_number,
+               d.first_name AS owner_first_name, d.last_name AS owner_last_name
+        FROM vehicle v JOIN driver d ON v.license_number = d.license_number
+        WHERE d.license_number = %s ORDER BY v.plate_number
+    """, (ln,))
+    title = f"Vehicles Owned by {drv['first_name']} {drv['last_name']} ({ln})"
+    return _render_report(title, 2, rows, {"License Number": ln})
 
 
 @app.route("/reports/expired_registrations")
 def report_expired_registrations():
     """Report 3: Vehicles with expired registrations as of a given date."""
-    as_of = request.args.get("as_of_date", str(date.today()))
+    as_of_raw = clean(request.args.get("as_of_date"))
+    if not as_of_raw:
+        as_of = date.today()
+    else:
+        try:
+            as_of = parse_date(as_of_raw, "As-of date")
+        except ValidationError as e:
+            return _render_report("Expired Registrations", 3, [], message=str(e))
+
     rows = query("""
         SELECT v.plate_number, v.chassis_number, v.vehicle_type, v.make, v.model, v.year,
                d.first_name AS owner_first_name, d.last_name AS owner_last_name,
                d.license_number, vr.registration_number,
                vr.expiration_date, vr.registration_status
         FROM vehicle_registration vr
-        JOIN vehicle v ON vr.plate_number = v.plate_number AND vr.chassis_number = v.chassis_number
+        JOIN vehicle v ON vr.plate_number = v.plate_number
+                       AND vr.chassis_number = v.chassis_number
         JOIN driver d ON v.license_number = d.license_number
         WHERE vr.expiration_date < %s
         ORDER BY vr.expiration_date DESC
     """, (as_of,))
-    return render_template("index.html", page="report_result",
-                           report_title=f"Expired Registrations (as of {as_of})",
-                           report_id=3, rows=rows)
+    return _render_report(f"Expired Registrations (as of {as_of})", 3,
+                          rows, {"As of Date": str(as_of)})
 
 
 @app.route("/reports/invalid_licenses")
 def report_invalid_licenses():
     """Report 4: Drivers with expired or suspended licenses."""
-    rows = query("""
-        SELECT license_number, first_name, middle_name, last_name,
-               license_type, license_status, license_expiration_date,
-               TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) AS age, address
-        FROM driver
-        WHERE license_status IN ('expired','suspended')
-        ORDER BY license_status, last_name
-    """)
-    return render_template("index.html", page="report_result",
-                           report_title="Drivers with Expired / Suspended Licenses",
-                           report_id=4, rows=rows)
+    status = clean(request.args.get("license_status"))
+    sql = """SELECT license_number, first_name, middle_name, last_name,
+                    license_type, license_status, license_expiration_date,
+                    TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) AS age, address
+             FROM driver
+             WHERE license_status IN ('expired','suspended')"""
+    params = []
+    if status:
+        s = status.lower()
+        if s not in {"expired", "suspended"}:
+            return _render_report("Drivers with Expired / Suspended Licenses", 4, [],
+                                  message="Filter must be 'expired' or 'suspended'.")
+        sql += " AND license_status=%s"
+        params.append(s)
+    sql += " ORDER BY license_status, last_name"
+    rows = query(sql, params)
+    used = {"Status filter": status} if status else {"Status filter": "expired or suspended"}
+    return _render_report("Drivers with Expired / Suspended Licenses", 4, rows, used)
 
 
 @app.route("/reports/violations_by_driver")
 def report_violations_by_driver():
     """Report 5: Violations by a driver within a date range."""
-    ln = request.args.get("license_number", "")
-    d1 = request.args.get("date_from", "2020-01-01")
-    d2 = request.args.get("date_to", str(date.today()))
-    rows = []
-    if ln:
-        rows = query("""
-            SELECT tv.traffic_violation_id, tv.date, tv.time, tv.location,
-                   tv.apprehending_officer, tv.violation_status,
-                   tv.total_fine_amount, tv.plate_number, tvt.violation_type
-            FROM traffic_violation tv
-            LEFT JOIN traffic_violation_type tvt ON tv.traffic_violation_id = tvt.traffic_violation_id
-            WHERE tv.license_number = %s AND tv.date BETWEEN %s AND %s
-            ORDER BY tv.date, tv.time
-        """, (ln, d1, d2))
-    return render_template("index.html", page="report_result",
-                           report_title=f"Violations by {ln} ({d1} to {d2})",
-                           report_id=5, rows=rows)
+    ln = clean(request.args.get("license_number"))
+    d1 = clean(request.args.get("date_from")) or "2000-01-01"
+    d2 = clean(request.args.get("date_to"))   or str(date.today())
+
+    if not ln:
+        return _render_report("Violations by Driver", 5, [],
+                              message="Please provide a license number.")
+    try:
+        d1d = parse_date(d1, "Date from")
+        d2d = parse_date(d2, "Date to")
+    except ValidationError as e:
+        return _render_report("Violations by Driver", 5, [], message=str(e))
+    if d1d > d2d:
+        return _render_report("Violations by Driver", 5, [],
+                              message="'From' date must be on or before 'To' date.")
+
+    drv = query("SELECT first_name, last_name FROM driver WHERE license_number=%s",
+                (ln,), fetchone=True)
+    if not drv:
+        return _render_report(f"Violations by Driver {ln}", 5, [],
+                              message=f"No driver found with license number '{ln}'.")
+
+    rows = query("""
+        SELECT tv.traffic_violation_id, tv.date, tv.time, tv.location,
+               tv.apprehending_officer, tv.violation_status,
+               tv.total_fine_amount, tv.plate_number, tvt.violation_type
+        FROM traffic_violation tv
+        LEFT JOIN traffic_violation_type tvt
+               ON tv.traffic_violation_id = tvt.traffic_violation_id
+        WHERE tv.license_number = %s AND tv.date BETWEEN %s AND %s
+        ORDER BY tv.date, tv.time
+    """, (ln, d1d, d2d))
+    for r in rows:
+        if hasattr(r.get("time"), "total_seconds"):
+            r["time"] = str(r["time"])
+    title = f"Violations by {drv['first_name']} {drv['last_name']} ({d1d} → {d2d})"
+    return _render_report(title, 5, rows,
+                          {"License Number": ln, "From": str(d1d), "To": str(d2d)})
 
 
 @app.route("/reports/violations_per_type")
 def report_violations_per_type():
     """Report 6: Violation count per type for a given year."""
-    yr = request.args.get("year", str(date.today().year))
+    yr_raw = clean(request.args.get("year"))
+    if not yr_raw:
+        return _render_report("Violations per Type", 6, [],
+                              message="Please provide a year.")
+    try:
+        yr = parse_int(yr_raw, "Year", min_v=1900, max_v=2100)
+    except ValidationError as e:
+        return _render_report("Violations per Type", 6, [], message=str(e))
+
     rows = query("""
         SELECT tvt.violation_type, COUNT(*) AS total_violations
         FROM traffic_violation_type tvt
         JOIN traffic_violation tv ON tvt.traffic_violation_id = tv.traffic_violation_id
         WHERE YEAR(tv.date) = %s
         GROUP BY tvt.violation_type
-        ORDER BY total_violations DESC
-    """, (int(yr),))
-    return render_template("index.html", page="report_result",
-                           report_title=f"Violations per Type ({yr})",
-                           report_id=6, rows=rows)
+        ORDER BY total_violations DESC, tvt.violation_type
+    """, (yr,))
+    return _render_report(f"Violations per Type ({yr})", 6, rows, {"Year": yr})
 
 
 @app.route("/reports/vehicles_in_violations")
 def report_vehicles_in_violations():
     """Report 7: Vehicles involved in violations in a city/region."""
-    loc = request.args.get("location", "")
-    rows = []
-    if loc:
-        rows = query("""
-            SELECT DISTINCT v.plate_number, v.chassis_number, v.make, v.model,
-                   v.year, v.color, v.vehicle_type,
-                   d.first_name AS owner_first_name, d.last_name AS owner_last_name,
-                   tv.location
-            FROM traffic_violation tv
-            JOIN vehicle v ON tv.plate_number = v.plate_number AND tv.chassis_number = v.chassis_number
-            JOIN driver d ON v.license_number = d.license_number
-            WHERE tv.location LIKE %s
-            ORDER BY v.plate_number
-        """, (f"%{loc}%",))
-    return render_template("index.html", page="report_result",
-                           report_title=f"Vehicles in Violations near '{loc}'",
-                           report_id=7, rows=rows)
+    loc = clean(request.args.get("location"))
+    if not loc:
+        return _render_report("Vehicles in Violations", 7, [],
+                              message="Please provide a city or region.")
+    rows = query("""
+        SELECT DISTINCT v.plate_number, v.chassis_number, v.make, v.model,
+               v.year, v.color, v.vehicle_type,
+               d.first_name AS owner_first_name, d.last_name AS owner_last_name,
+               tv.location
+        FROM traffic_violation tv
+        JOIN vehicle v ON tv.plate_number = v.plate_number
+                      AND tv.chassis_number = v.chassis_number
+        JOIN driver d ON v.license_number = d.license_number
+        WHERE tv.location LIKE %s
+        ORDER BY v.plate_number
+    """, (f"%{loc}%",))
+    return _render_report(f"Vehicles in Violations near '{loc}'", 7,
+                          rows, {"Location": loc})
 
 
 # ── Dashboard stats ──────────────────────────────────────────────────────────
 
 @app.route("/api/stats")
 def api_stats():
-    total_drivers = query("SELECT COUNT(*) AS c FROM driver", fetchone=True)["c"]
-    total_vehicles = query("SELECT COUNT(*) AS c FROM vehicle", fetchone=True)["c"]
-    total_violations = query("SELECT COUNT(*) AS c FROM traffic_violation", fetchone=True)["c"]
-    unpaid = query("SELECT COUNT(*) AS c FROM traffic_violation WHERE violation_status='unpaid'", fetchone=True)["c"]
-    expired_lic = query("SELECT COUNT(*) AS c FROM driver WHERE license_status IN ('expired','suspended')", fetchone=True)["c"]
-    expired_reg = query("SELECT COUNT(*) AS c FROM vehicle_registration WHERE expiration_date < CURDATE()", fetchone=True)["c"]
-    return jsonify(dict(
-        total_drivers=total_drivers, total_vehicles=total_vehicles,
-        total_violations=total_violations, unpaid_violations=unpaid,
-        expired_licenses=expired_lic, expired_registrations=expired_reg,
-    ))
+    stats = query("""
+        SELECT
+          (SELECT COUNT(*) FROM driver)                                                 AS total_drivers,
+          (SELECT COUNT(*) FROM vehicle)                                                AS total_vehicles,
+          (SELECT COUNT(*) FROM vehicle_registration)                                   AS total_registrations,
+          (SELECT COUNT(*) FROM traffic_violation)                                      AS total_violations,
+          (SELECT COUNT(*) FROM traffic_violation WHERE violation_status='unpaid')      AS unpaid_violations,
+          (SELECT COUNT(*) FROM driver WHERE license_status IN ('expired','suspended','revoked'))
+                                                                                        AS expired_licenses,
+          (SELECT COUNT(*) FROM vehicle_registration WHERE expiration_date < CURDATE()) AS expired_registrations
+    """, fetchone=True)
+    return jsonify(stats)
+
+
+# ── Recent activity feed ─────────────────────────────────────────────────────
+
+@app.route("/api/recent")
+def api_recent():
+    """Latest 5 violations for the dashboard activity feed."""
+    rows = query("""
+        SELECT tv.traffic_violation_id, tv.date, tv.time,
+               tv.violation_status, tv.total_fine_amount, tv.location,
+               tv.plate_number, tvt.violation_type,
+               CONCAT(d.first_name,' ',d.last_name) AS driver_name
+        FROM traffic_violation tv
+        LEFT JOIN traffic_violation_type tvt
+               ON tv.traffic_violation_id = tvt.traffic_violation_id
+        JOIN driver d ON tv.license_number = d.license_number
+        ORDER BY tv.date DESC, tv.time DESC
+        LIMIT 5
+    """)
+    for r in rows:
+        # serialize date/time so jsonify can handle them
+        if r.get("date"):   r["date"] = str(r["date"])
+        if r.get("time") is not None:
+            r["time"] = str(r["time"])
+    return jsonify(rows)
+
+
+# ── Error handlers ───────────────────────────────────────────────────────────
+
+@app.errorhandler(404)
+def not_found(e):
+    return render_template("index.html", page="error",
+                           error_title="Page not found",
+                           error_message="The page you requested does not exist."), 404
+
+
+@app.errorhandler(500)
+def server_error(e):
+    return render_template("index.html", page="error",
+                           error_title="Server error",
+                           error_message=str(e)), 500
 
 
 # ──────────────────────────────────────────────────────────────────────────────
