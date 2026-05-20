@@ -207,9 +207,19 @@ def _validate_driver(f, *, is_edit=False):
 
     if dob > date.today():
         raise ValidationError("Date of birth cannot be in the future.")
-    age = (date.today() - dob).days // 365
-    if age < 16:
-        raise ValidationError("Driver must be at least 16 years old.")
+    
+    # Calculate exact age on the date the license was issued
+    age_at_issuance = issued.year - dob.year - ((issued.month, issued.day) < (dob.month, dob.day))
+    
+    if license_type == "Student Permit" and age_at_issuance < 16:
+        raise ValidationError("Driver must be at least 16 years old at issuance for a Student Permit.")
+    elif license_type == "Non-Professional" and age_at_issuance < 17:
+        raise ValidationError("Driver must be at least 17 years old at issuance for a Non-Professional license.")
+    elif license_type == "Professional" and age_at_issuance < 18:
+        raise ValidationError("Driver must be at least 18 years old at issuance for a Professional license.")
+        
+    if age_at_issuance > 120:
+        raise ValidationError("Date of birth is unrealistic.")
     if age > 120:
         raise ValidationError("Date of birth is unrealistic.")
     if expires < issued:
