@@ -43,11 +43,10 @@ DB_PASSWORD=
 > `.env` is listed in `.gitignore` and will not be pushed to GitHub.
 
 ### 4. Run the application
-
+```
 python app.py
-
-
-Then open **http://localhost:5000** in your browser.
+```
+> Then open **http://localhost:5000** in your browser.
 
 ---
 
