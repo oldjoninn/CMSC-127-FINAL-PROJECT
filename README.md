@@ -32,18 +32,18 @@ mysql -u root < crisostomo_shi_malco_milestone.sql
 ### 3. Configure database credentials
 
 Create a `.env` file in the project root:
-
+```
 DB_PASSWORD=your_mariadb_password_here
-
+```
 Leave it blank if your MariaDB has no password:
-
+```
 DB_PASSWORD=
+```
 
 > `.env` is listed in `.gitignore` and will not be pushed to GitHub.
 
 ### 4. Run the application
 
-```
 python app.py
 
 
