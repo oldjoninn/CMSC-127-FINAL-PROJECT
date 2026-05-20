@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% set page = 'vehicles' %}
+{% from 'partials/macros.html' import page_header, panel_head %}
+
+{% block title %}Vehicles — LTO IMS{% endblock %}
+
+{% block content %}
+{{ page_header('Management / Vehicles', 'Vehicle Management', 'Register and manage motor vehicles.') }}
+
+<div class="panel animate-fade-up">
+  {{ panel_head('Registered Vehicles', '/vehicles', 'Search plate, chassis, make, owner…', 'Add Vehicle', 'add-vehicle') }}
+  <div class="overflow-x-auto"><table>
+    <thead><tr>
+      <th>Plate #</th><th>Chassis #</th><th>Type</th><th>Make / Model</th>
+      <th>Year</th><th>Color</th><th>Owner</th><th>Actions</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}<tr>
+      <td class="mono">{{ r.plate_number }}</td>
+      <td class="mono">{{ r.chassis_number }}</td>
+      <td>{{ r.vehicle_type }}</td>
+      <td>{{ r.make }} {{ r.model }}</td>
+      <td>{{ r.year }}</td>
+      <td>{{ r.color }}</td>
+      <td>{{ r.owner_first_name }} {{ r.owner_last_name }}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick='editVehicle({{ r | tojson }})'>Edit</button>
+        <a class="btn btn-sm btn-danger" href="/vehicles/delete/{{ r.plate_number }}/{{ r.chassis_number }}" onclick="return confirm('Delete?')">Del</a>
+      </td>
+    </tr>{% endfor %}
+    {% if not rows %}<tr><td colspan="8" class="empty">No vehicles found.</td></tr>{% endif %}
+    </tbody>
+  </table></div>
+</div>
+
+{# ── ADD VEHICLE MODAL ── #}
+<div class="modal-backdrop" id="add-vehicle"><div class="modal">
+  <div class="modal-head">
+    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
+    <h2>Add New Vehicle</h2>
+  </div>
+  <form method="POST" action="/vehicles/add">
+    <div class="modal-body"><div class="form-grid">
+      {% include 'partials/vehicle_fields.html' %}
+    </div></div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Add Vehicle</button>
+    </div>
+  </form>
+</div></div>
+
+{# ── EDIT VEHICLE MODAL ── #}
+<div class="modal-backdrop" id="edit-vehicle"><div class="modal">
+  <div class="modal-head">
+    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
+    <h2>Edit Vehicle</h2>
+  </div>
+  <form method="POST" action="/vehicles/edit">
+    <div class="modal-body"><div class="form-grid">
+      {% set field_prefix = 'ev-' %}
+      {% set is_edit = true %}
+      {% include 'partials/vehicle_fields.html' with context %}
+    </div></div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+  </form>
+</div></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function editVehicle(r) {
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v || ''; };
+  set('ev-pn', r.plate_number);
+  set('ev-cn', r.chassis_number);
+  set('ev-en', r.engine_number);
+  set('ev-vt', r.vehicle_type);
+  set('ev-ot', r.ownership_type);
+  set('ev-mk', r.make);
+  set('ev-md', r.model);
+  set('ev-yr', r.year);
+  set('ev-cl', r.color);
+  set('ev-fr', r.franchise_number);
+  set('ev-ln', r.license_number);
+  openModal('edit-vehicle');
+}
+</script>
+{% endblock %}

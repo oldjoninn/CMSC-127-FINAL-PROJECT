@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% set page = 'registrations' %}
+{% from 'partials/macros.html' import page_header, panel_head %}
+
+{% block title %}Registrations — LTO IMS{% endblock %}
+
+{% block content %}
+{{ page_header('Management / Registrations', 'Vehicle Registration', 'Track registrations and renewals.') }}
+
+<div class="panel animate-fade-up">
+  {{ panel_head('Registration Records', '/registrations', 'Search reg #, plate, owner…', 'Add Registration', 'add-reg') }}
+  <div class="overflow-x-auto"><table>
+    <thead><tr>
+      <th>Reg #</th><th>Vehicle</th><th>Registered</th>
+      <th>Expires</th><th>Status</th><th>Owner</th><th>Actions</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}<tr>
+      <td class="mono">{{ r.registration_number }}</td>
+      <td>{{ r.make }} {{ r.model }} <span class="mono text-slate-400">({{ r.plate_number }})</span></td>
+      <td>{{ r.registration_date }}</td>
+      <td>{{ r.expiration_date }}</td>
+      <td><span class="badge {{ r.registration_status }}">{{ r.registration_status }}</span></td>
+      <td>{{ r.owner_first_name }} {{ r.owner_last_name }}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick='editReg({{ r | tojson }})'>Edit</button>
+        <a class="btn btn-sm btn-danger" href="/registrations/delete/{{ r.registration_number }}" onclick="return confirm('Delete?')">Del</a>
+      </td>
+    </tr>{% endfor %}
+    {% if not rows %}<tr><td colspan="7" class="empty">No registrations found.</td></tr>{% endif %}
+    </tbody>
+  </table></div>
+</div>
+
+{# ── ADD REGISTRATION MODAL ── #}
+<div class="modal-backdrop" id="add-reg"><div class="modal">
+  <div class="modal-head">
+    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
+    <h2>Add Registration</h2>
+  </div>
+  <form method="POST" action="/registrations/add">
+    <div class="modal-body"><div class="form-grid">
+      <label class="field full">
+        Registration Number
+        <input name="registration_number" required placeholder="REG-2025-00001">
+      </label>
+      <label class="field full">
+        Vehicle
+        <select name="vehicle_key" required>
+          {% for v in vehicles_list %}
+            <option value="{{ v.plate_number }}|{{ v.chassis_number }}">
+              {{ v.make }} {{ v.model }} ({{ v.plate_number }})
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">Registration Date <input type="date" name="registration_date" required></label>
+      <label class="field">Expiration Date   <input type="date" name="expiration_date"   required></label>
+      <label class="field full">
+        Status
+        <select name="registration_status">
+          <option value="active">Active</option>
+          <option value="expired">Expired</option>
+          <option value="suspended">Suspended</option>
+        </select>
+      </label>
+    </div></div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Add Registration</button>
+    </div>
+  </form>
+</div></div>
+
+{# ── EDIT REGISTRATION MODAL ── #}
+<div class="modal-backdrop" id="edit-reg"><div class="modal">
+  <div class="modal-head">
+    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
+    <h2>Edit Registration</h2>
+  </div>
+  <form method="POST" action="/registrations/edit">
+    <div class="modal-body"><div class="form-grid">
+      <label class="field full">Registration Number <input name="registration_number" readonly id="er-rn"></label>
+      <label class="field">Registration Date <input type="date" name="registration_date" required id="er-rd"></label>
+      <label class="field">Expiration Date   <input type="date" name="expiration_date"   required id="er-ed"></label>
+      <label class="field full">
+        Status
+        <select name="registration_status" id="er-rs">
+          <option value="active">Active</option>
+          <option value="expired">Expired</option>
+          <option value="suspended">Suspended</option>
+        </select>
+      </label>
+    </div></div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+  </form>
+</div></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function editReg(r) {
+  const set = (id, v) => { document.getElementById(id).value = v || ''; };
+  set('er-rn', r.registration_number);
+  set('er-rd', r.registration_date);
+  set('er-ed', r.expiration_date);
+  set('er-rs', r.registration_status);
+  openModal('edit-reg');
+}
+</script>
+{% endblock %}

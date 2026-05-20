@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% set page = 'error' %}
+{% from 'partials/macros.html' import page_header %}
+
+{% block title %}Error — LTO IMS{% endblock %}
+
+{% block content %}
+{{ page_header('System', error_title, error_message) }}
+<a href="/" class="btn btn-primary">Return to Dashboard</a>
+{% endblock %}

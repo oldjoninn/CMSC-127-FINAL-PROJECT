@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}LTO Information Management System{% endblock %}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Condensed:wght@400;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="{{ url_for('static', filename='lto-logo.jpg') }}" type="image/jpg">
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          lto: {
+            deep:  '#0B2F8A',
+            blue:  '#1452D4',
+            light: '#3A7BEE',
+            tint:  '#E6EEFB',
+            gold:  '#FFB81C',
+            red:   '#E11D2A',
+          },
+        },
+        fontFamily: {
+          sans: ['Roboto', 'system-ui', 'sans-serif'],
+          display: ['"Roboto Condensed"', 'sans-serif'],
+          mono: ['"Roboto Mono"', 'ui-monospace', 'monospace'],
+        },
+        keyframes: {
+          fadeUp: { '0%': { opacity: '0', transform: 'translateY(8px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+        },
+        animation: {
+          'fade-up': 'fadeUp .35s ease-out both',
+        },
+      },
+    },
+  };
+</script>
+<style type="text/tailwindcss">
+  @layer components {
+    .btn         { @apply inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer transition border; }
+    .btn-sm      { @apply px-2.5 py-1 text-xs rounded; }
+    .btn-primary { @apply bg-lto-blue text-white border-lto-blue hover:bg-lto-deep hover:border-lto-deep hover:shadow-md; }
+    .btn-ghost   { @apply bg-white text-lto-deep border-slate-300 hover:bg-lto-tint hover:border-lto-blue; }
+    .btn-danger  { @apply bg-white text-red-600 border-red-200 hover:bg-red-50; }
+
+    .field { @apply flex flex-col gap-1 text-[11px] font-bold uppercase tracking-wider text-slate-600; }
+    .field input, .field select, .field textarea {
+      @apply bg-white border border-slate-300 rounded-md px-3 py-2 text-[13px] font-normal normal-case tracking-normal text-slate-800
+             focus:outline-none focus:border-lto-blue focus:ring-2 focus:ring-lto-blue/20 transition;
+    }
+    .field input[readonly] { @apply bg-slate-100 text-slate-500; }
+
+    .badge { @apply inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wide; }
+    .badge.valid, .badge.active, .badge.paid       { @apply bg-emerald-100 text-emerald-700; }
+    .badge.expired, .badge.unpaid, .badge.revoked  { @apply bg-red-100 text-red-700; }
+    .badge.suspended, .badge.contested             { @apply bg-amber-100 text-amber-700; }
+    .badge.dismissed                               { @apply bg-lto-tint text-lto-deep; }
+
+    .flash         { @apply px-4 py-3 mb-4 rounded-md text-[13px] font-medium border-l-4 animate-fade-up; }
+    .flash.success { @apply bg-emerald-50 text-emerald-700 border-emerald-500; }
+    .flash.danger  { @apply bg-red-50 text-red-700 border-red-500; }
+    .flash.warn    { @apply bg-amber-50 text-amber-700 border-amber-500; }
+
+    .panel      { @apply bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden; }
+    .panel-head { @apply flex items-center gap-3 flex-wrap px-5 py-3 border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white; }
+    table       { @apply w-full border-collapse text-[13px]; }
+    thead       { @apply bg-slate-100; }
+    th          { @apply text-left px-4 py-3 font-bold text-[10.5px] uppercase tracking-wider text-slate-600 border-b border-slate-200 whitespace-nowrap; }
+    td          { @apply px-4 py-3 border-b border-slate-100 text-slate-800 whitespace-nowrap; }
+    tbody tr:last-child td { @apply border-b-0; }
+    tbody tr:hover td      { @apply bg-lto-tint/40; }
+
+    .page-head  { @apply bg-gradient-to-r from-lto-deep via-lto-blue to-lto-light text-white px-7 py-5 rounded-lg shadow mb-5 flex items-center justify-between gap-4 flex-wrap animate-fade-up relative overflow-hidden; }
+    .page-head::after { content:""; @apply absolute inset-0 opacity-20 pointer-events-none; background: radial-gradient(circle at 90% 50%, rgba(255,184,28,.35), transparent 50%); }
+    .page-head .crumb { @apply text-[11px] opacity-80 uppercase tracking-widest mb-1; }
+    .page-head h1     { @apply font-display text-[22px] font-bold tracking-wide; }
+    .page-head .desc  { @apply text-[12.5px] opacity-90 mt-1; }
+
+    .section-title { @apply flex items-center gap-2.5 my-3 font-display text-base font-bold uppercase tracking-wide text-slate-800 before:content-[''] before:block before:w-1 before:h-[18px] before:bg-lto-gold before:rounded; }
+
+    .modal-backdrop { @apply hidden fixed inset-0 bg-lto-deep/50 backdrop-blur-sm z-[500] items-center justify-center; }
+    .modal-backdrop.open { @apply flex; }
+    .modal      { @apply bg-white rounded-xl w-[560px] max-h-[90vh] overflow-y-auto shadow-2xl border-t-4 border-lto-gold animate-fade-up; }
+    .modal-head { @apply px-6 py-4 border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white flex items-center gap-3; }
+    .modal-head h2 { @apply font-display text-[17px] font-bold uppercase tracking-wide text-lto-deep; }
+    .modal-body { @apply px-6 py-5; }
+    .form-grid  { @apply grid grid-cols-2 gap-3.5; }
+    .form-grid .full { @apply col-span-2; }
+    .form-actions { @apply flex justify-end gap-2.5 px-6 py-4 border-t border-slate-200 bg-slate-50; }
+
+    .report-card { @apply bg-white border border-slate-200 border-l-4 border-l-lto-blue rounded-lg p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200; }
+    .report-card .report-num { @apply font-mono text-[10.5px] text-lto-gold font-bold tracking-widest mb-1; }
+    .report-card h3 { @apply font-display text-[15px] font-bold uppercase tracking-wide text-slate-800 mb-1.5; }
+    .report-card .report-help { @apply text-[12.5px] text-slate-500 mb-3.5; }
+    .report-card .inline-form { @apply flex gap-2.5 items-end flex-wrap; }
+    .report-card .inline-form .field { @apply min-w-[140px]; }
+
+    .chip { @apply bg-lto-tint border border-slate-300 rounded-full px-3 py-1 text-xs text-lto-deep; }
+    .chip strong { @apply text-slate-600 font-bold mr-1; }
+    .empty { @apply text-center py-12 px-5 text-slate-500 text-[13px] italic; }
+    .mono  { @apply font-mono text-xs text-slate-800; }
+
+    .stat-card { @apply bg-white border border-slate-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden; }
+    .stat-card::before { content:""; @apply absolute right-0 top-0 w-20 h-20 rounded-full opacity-5 -mr-8 -mt-8 bg-current; }
+  }
+
+  /* Hero — solid navy fallback so it looks correct even if the photo is missing */
+  .hero {
+    position: relative;
+    background: radial-gradient(110% 80% at 50% 0%, #1F62E8 0%, #0B2F8A 55%, #061846 100%);
+  }
+  .hero-bg {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; opacity: .35;
+    mix-blend-mode: luminosity;
+  }
+  .hero-overlay {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(180deg, rgba(11,47,138,.35) 0%, rgba(6,18,55,.85) 100%);
+  }
+  .hero > *:not(.hero-bg):not(.hero-overlay) { position: relative; z-index: 2; }
+
+  @keyframes scrollx { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .marquee-track { animation: scrollx 40s linear infinite; }
+</style>
+</head>
+<body class="font-sans bg-slate-100 text-slate-800 min-h-screen antialiased">
+
+<!-- UTILITY STRIP -->
+<div class="bg-lto-red text-white text-[11px] overflow-hidden">
+  <div class="max-w-[1280px] mx-auto px-6 py-1 flex items-center gap-6">
+    <span class="font-bold tracking-widest uppercase shrink-0">🇵🇭 Official Government Website</span>
+    <div class="flex-1 overflow-hidden">
+      <div class="marquee-track inline-flex whitespace-nowrap gap-12 opacity-90">
+        <span>⚠ Renew your license at least 60 days before expiration.</span>
+        <span>📋 Smoke-belching vehicles are subject to immediate apprehension.</span>
+        <span>🚗 New vehicle registration requires emission test and CTPL insurance.</span>
+        <span>⚠ Renew your license at least 60 days before expiration.</span>
+        <span>📋 Smoke-belching vehicles are subject to immediate apprehension.</span>
+        <span>🚗 New vehicle registration requires emission test and CTPL insurance.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOP NAV -->
+<header class="bg-lto-deep text-white sticky top-0 z-[200] shadow-lg">
+  <div class="max-w-[1280px] mx-auto flex items-center gap-8 px-6 py-2.5">
+    <a href="/" class="flex items-center gap-3 text-white">
+      <div class="h-11 w-11 rounded-full bg-white ring-2 ring-lto-gold shadow flex items-center justify-center overflow-hidden shrink-0">
+        <img src="{{ url_for('static', filename='lto-logo.jpg') }}" alt="LTO" class="w-full h-full object-contain p-0.5">
+      </div>
+      <div class="leading-tight">
+        <div class="font-display font-bold text-[17px] tracking-wide">LTMS PORTAL</div>
+        <div class="text-[9.5px] tracking-widest opacity-70 uppercase">Land Transportation Office</div>
+      </div>
+    </a>
+    <nav class="flex items-center gap-1 ml-auto text-xs font-medium uppercase tracking-wider">
+      {% set nav_items = [('/', 'Dashboard', 'dashboard'), ('/drivers', 'Drivers', 'drivers'), ('/vehicles', 'Vehicles', 'vehicles'), ('/registrations', 'Registrations', 'registrations'), ('/violations', 'Violations', 'violations'), ('/reports', 'Reports', 'reports')] %}
+      {% for href, label, key in nav_items %}
+        {% set is_active = (key == page) or (key == 'reports' and page == 'report_result') %}
+        <a href="{{ href }}" class="px-3.5 py-2 rounded-md text-slate-200 hover:bg-white/10 hover:text-white transition {{ 'bg-white/10 text-white shadow-[inset_0_-2px_0_#FFB81C]' if is_active }}">{{ label }}</a>
+      {% endfor %}
+      <span class="w-px h-[18px] bg-white/20 mx-1.5"></span>
+      <span class="text-white font-bold pl-3.5 flex items-center gap-2">
+        <div class="w-7 h-7 rounded-full bg-lto-gold text-lto-deep flex items-center justify-center text-[11px] font-bold">A</div>
+        ADMIN<span class="text-lto-gold ml-1">· LTO-IMS</span>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<div class="max-w-[1280px] mx-auto px-6 py-6">
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+
+</div>
+
+<!-- FOOTER -->
+<footer class="border-t border-slate-200 bg-white mt-10">
+  <div class="max-w-[1280px] mx-auto px-6 py-6 flex items-center justify-between flex-wrap gap-4">
+    <div class="flex items-center gap-3">
+      <img src="{{ url_for('static', filename='lto-logo.jpg') }}" alt="LTO" class="h-12 w-12 object-contain">
+      <div class="text-[12px] text-slate-600 leading-tight">
+        <div class="font-bold text-slate-800">Land Transportation Office</div>
+        <div>Information Management System · CMSC 127 Milestone 3</div>
+      </div>
+    </div>
+    <div class="text-[11px] text-slate-500 text-right">
+      © Republika ng Pilipinas · Department of Transportation<br>
+      <span class="text-slate-400">For academic use only</span>
+    </div>
+  </div>
+</footer>
+
+<!-- SHARED MODAL JS -->
+<script>
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModals() { document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.remove('open')); }
+document.querySelectorAll('.modal-backdrop').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) closeModals(); });
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
+</script>
+
+{% block scripts %}{% endblock %}
+
+</body>
+</html>

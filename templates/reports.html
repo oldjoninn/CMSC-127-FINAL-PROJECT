@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% set page = 'reports' %}
+{% from 'partials/macros.html' import page_header %}
+
+{% block title %}Reports — LTO IMS{% endblock %}
+
+{% block content %}
+{{ page_header('Analytics / Reports', 'Parameterized Reports', 'Generate analytical reports based on user-selected parameters.') }}
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+  {# REPORT 01 #}
+  <div class="report-card">
+    <div class="report-num">REPORT 01</div>
+    <h3>Drivers by License Type / Status / Age / Sex</h3>
+    <p class="report-help">All filters are optional. Leave blank to include all drivers.</p>
+    <form class="inline-form" action="/reports/drivers_filtered">
+      <label class="field">License Type
+        <select name="license_type">
+          <option value="">All</option>
+          <option>Non-Professional</option>
+          <option>Professional</option>
+          <option>Student Permit</option>
+        </select>
+      </label>
+      <label class="field">Status
+        <select name="license_status">
+          <option value="">All</option>
+          <option value="valid">Valid</option>
+          <option value="expired">Expired</option>
+          <option value="suspended">Suspended</option>
+          <option value="revoked">Revoked</option>
+        </select>
+      </label>
+      <label class="field">Sex
+        <select name="sex">
+          <option value="">All</option>
+          <option value="M">M</option>
+          <option value="F">F</option>
+        </select>
+      </label>
+      <label class="field">Min Age <input type="number" name="age_min" min="0" max="150" placeholder="18"></label>
+      <label class="field">Max Age <input type="number" name="age_max" min="0" max="150" placeholder="65"></label>
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+
+  {# REPORT 02 #}
+  <div class="report-card">
+    <div class="report-num">REPORT 02</div>
+    <h3>Vehicles Owned by a Driver</h3>
+    <p class="report-help">Pick a driver to list all vehicles registered under their license.</p>
+    <form class="inline-form" action="/reports/vehicles_by_driver">
+      <label class="field flex-1 !min-w-[240px]">Driver
+        <select name="license_number" required>
+          <option value="">— Select Driver —</option>
+          {% for d in drivers_list %}
+            <option value="{{ d.license_number }}">{{ d.last_name }}, {{ d.first_name }} ({{ d.license_number }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+
+  {# REPORT 03 #}
+  <div class="report-card">
+    <div class="report-num">REPORT 03</div>
+    <h3>Expired Vehicle Registrations</h3>
+    <p class="report-help">Lists all vehicles whose registration expired before the chosen date.</p>
+    <form class="inline-form" action="/reports/expired_registrations">
+      <label class="field">As of Date <input type="date" name="as_of_date" required></label>
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+
+  {# REPORT 04 #}
+  <div class="report-card">
+    <div class="report-num">REPORT 04</div>
+    <h3>Expired / Suspended Licenses</h3>
+    <p class="report-help">Optional status filter. Leave blank to include both.</p>
+    <form class="inline-form" action="/reports/invalid_licenses">
+      <label class="field">Status filter
+        <select name="license_status">
+          <option value="">Both (Expired &amp; Suspended)</option>
+          <option value="expired">Expired only</option>
+          <option value="suspended">Suspended only</option>
+        </select>
+      </label>
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+
+  {# REPORT 05 #}
+  <div class="report-card">
+    <div class="report-num">REPORT 05</div>
+    <h3>Violations by Driver (Date Range)</h3>
+    <p class="report-help">Pick a driver and the date range for the report.</p>
+    <form class="inline-form" action="/reports/violations_by_driver">
+      <label class="field flex-1 !min-w-[200px]">Driver
+        <select name="license_number" required>
+          <option value="">— Select Driver —</option>
+          {% for d in drivers_list %}
+            <option value="{{ d.license_number }}">{{ d.last_name }}, {{ d.first_name }} ({{ d.license_number }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">From <input type="date" name="date_from" required></label>
+      <label class="field">To   <input type="date" name="date_to"   required></label>
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+
+  {# REPORT 06 #}
+  <div class="report-card">
+    <div class="report-num">REPORT 06</div>
+    <h3>Violations per Type (by Year)</h3>
+    <p class="report-help">Aggregated count of violations grouped by type for the year.</p>
+    <form class="inline-form" action="/reports/violations_per_type">
+      <label class="field">Year <input type="number" name="year" min="1900" max="2100" required placeholder="2025"></label>
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+
+  {# REPORT 07 #}
+  <div class="report-card">
+    <div class="report-num">REPORT 07</div>
+    <h3>Vehicles in Violations (by City / Region)</h3>
+    <p class="report-help">Partial match on violation location (e.g. "Quezon City", "EDSA").</p>
+    <form class="inline-form" action="/reports/vehicles_in_violations">
+      <label class="field flex-1 !min-w-[200px]">City / Location
+        <input name="location" required placeholder="Quezon City">
+      </label>
+      <button class="btn btn-primary">Generate</button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

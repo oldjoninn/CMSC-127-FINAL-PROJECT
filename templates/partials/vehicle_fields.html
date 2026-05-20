@@ -1,0 +1,78 @@
+{#
+  templates/partials/vehicle_fields.html
+  Renders all vehicle form inputs.
+
+  Variables:
+    field_prefix  (string, default '')   — ID prefix; use 'ev-' in edit modal.
+    is_edit       (bool,   default false) — When true, plate/chassis inputs are readonly.
+
+  Usage (add modal):
+    {% include 'partials/vehicle_fields.html' %}
+
+  Usage (edit modal):
+    {% set field_prefix = 'ev-' %}
+    {% set is_edit = true %}
+    {% include 'partials/vehicle_fields.html' with context %}
+#}
+{% set p  = field_prefix if field_prefix is defined else '' %}
+{% set ro = is_edit       if is_edit       is defined else false %}
+
+<label class="field">
+  Plate Number
+  <input name="plate_number" {{ 'readonly' if ro }} required
+         placeholder="ABC 1234" id="{{ p }}pn">
+</label>
+
+<label class="field">
+  Chassis Number
+  <input name="chassis_number" {{ 'readonly' if ro }} required
+         placeholder="CHS-001" id="{{ p }}cn">
+</label>
+
+<label class="field">
+  Engine Number
+  <input name="engine_number" required placeholder="ENG-001" id="{{ p }}en">
+</label>
+
+<label class="field">
+  Vehicle Type
+  <select name="vehicle_type" id="{{ p }}vt">
+    <option>private car</option>
+    <option>motorcycle</option>
+    <option>public utility vehicle</option>
+  </select>
+</label>
+
+<label class="field">
+  Ownership
+  <select name="ownership_type" id="{{ p }}ot">
+    <option>private</option>
+    <option>public</option>
+  </select>
+</label>
+
+<label class="field">Make <input name="make" required id="{{ p }}mk"></label>
+<label class="field">Model <input name="model" required id="{{ p }}md"></label>
+
+<label class="field">
+  Year
+  <input type="number" name="year" min="1990" max="2030" required id="{{ p }}yr">
+</label>
+
+<label class="field">Color <input name="color" required id="{{ p }}cl"></label>
+
+<label class="field">
+  Franchise #
+  <input name="franchise_number" placeholder="Optional" id="{{ p }}fr">
+</label>
+
+<label class="field full">
+  Owner
+  <select name="license_number" required id="{{ p }}ln">
+    {% for d in drivers_list %}
+      <option value="{{ d.license_number }}">
+        {{ d.first_name }} {{ d.last_name }} ({{ d.license_number }})
+      </option>
+    {% endfor %}
+  </select>
+</label>

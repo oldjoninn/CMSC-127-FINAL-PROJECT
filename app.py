@@ -167,7 +167,7 @@ def db_error_message(e):
 
 @app.route("/")
 def index():
-    return render_template("index.html", page="dashboard")
+    return render_template("dashboard.html")
 
 
 # ── DRIVERS ──────────────────────────────────────────────────────────────────
@@ -187,7 +187,7 @@ def drivers():
         params = [like, like, like, like]
     sql += " ORDER BY last_name, first_name"
     rows = query(sql, params)
-    return render_template("index.html", page="drivers", rows=rows, search=q or "")
+    return render_template("drivers.html", rows=rows, search=q or "")
 
 
 def _validate_driver(f, *, is_edit=False):
@@ -307,7 +307,7 @@ def vehicles():
     sql += " ORDER BY v.plate_number"
     rows = query(sql, params)
     drivers_list = query("SELECT license_number, first_name, last_name FROM driver ORDER BY last_name")
-    return render_template("index.html", page="vehicles",
+    return render_template("vehicles.html",
                            rows=rows, drivers_list=drivers_list, search=q or "")
 
 
@@ -432,7 +432,7 @@ def registrations():
         SELECT plate_number, chassis_number, make, model
         FROM vehicle ORDER BY plate_number
     """)
-    return render_template("index.html", page="registrations",
+    return render_template("registrations.html",
                            rows=rows, vehicles_list=vehicles_list, search=q or "")
 
 
@@ -550,7 +550,7 @@ def violations():
 
     drivers_list  = query("SELECT license_number, first_name, last_name FROM driver ORDER BY last_name")
     vehicles_list = query("SELECT plate_number, chassis_number, make, model FROM vehicle ORDER BY plate_number")
-    return render_template("index.html", page="violations", rows=rows,
+    return render_template("violations.html", rows=rows,
                            drivers_list=drivers_list, vehicles_list=vehicles_list,
                            search=q or "")
 
@@ -685,12 +685,12 @@ def violations_delete(vid):
 @app.route("/reports")
 def reports():
     drivers_list  = query("SELECT license_number, first_name, last_name FROM driver ORDER BY last_name")
-    return render_template("index.html", page="reports", drivers_list=drivers_list)
+    return render_template("reports.html", drivers_list=drivers_list)
 
 
 def _render_report(title, report_id, rows, params_used=None, message=None):
     return render_template(
-        "index.html", page="report_result",
+        "report_result.html",
         report_title=title, report_id=report_id, rows=rows,
         params_used=params_used or {}, message=message,
     )
@@ -953,14 +953,14 @@ def api_recent():
 
 @app.errorhandler(404)
 def not_found(e):
-    return render_template("index.html", page="error",
+    return render_template("error.html",
                            error_title="Page not found",
                            error_message="The page you requested does not exist."), 404
 
 
 @app.errorhandler(500)
 def server_error(e):
-    return render_template("index.html", page="error",
+    return render_template("error.html",
                            error_title="Server error",
                            error_message=str(e)), 500
 

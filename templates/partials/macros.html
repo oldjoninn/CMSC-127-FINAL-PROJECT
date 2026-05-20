@@ -1,0 +1,28 @@
+{# templates/partials/macros.html
+   Import this in any page template that needs page_header or panel_head:
+   {% from 'partials/macros.html' import page_header, panel_head %}
+#}
+
+{% macro page_header(crumb, title, desc) %}
+<div class="page-head">
+  <div>
+    <div class="crumb">{{ crumb }}</div>
+    <h1>{{ title }}</h1>
+    <div class="desc">{{ desc }}</div>
+  </div>
+  <img src="{{ url_for('static', filename='lto-logo.jpg') }}" alt="" class="hidden md:block h-16 w-16 object-contain opacity-20">
+</div>
+{% endmacro %}
+
+{% macro panel_head(title, action_url, search_ph, add_label, add_modal) %}
+<div class="panel-head">
+  <span class="font-display text-sm font-bold uppercase tracking-wide text-slate-800">{{ title }}</span>
+  <span class="flex-1"></span>
+  <form method="GET" action="{{ action_url }}" class="flex gap-2">
+    <input name="q" placeholder="{{ search_ph }}" value="{{ search or '' }}"
+           class="bg-white border border-slate-300 rounded-md px-3 py-2 text-[13px] min-w-[280px] focus:outline-none focus:border-lto-blue focus:ring-2 focus:ring-lto-blue/20">
+    <button class="btn btn-ghost">Search</button>
+  </form>
+  <button class="btn btn-primary" onclick="openModal('{{ add_modal }}')">+ {{ add_label }}</button>
+</div>
+{% endmacro %}

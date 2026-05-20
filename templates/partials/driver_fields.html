@@ -1,0 +1,86 @@
+{#
+  templates/partials/driver_fields.html
+  Renders all driver form inputs.
+
+  Variables:
+    field_prefix  (string, default '')  — ID prefix for edit-modal fields.
+                  Pass 'ed-' when rendering inside the edit modal so JS can
+                  target inputs by id (e.g. 'ed-ln', 'ed-fn', …).
+                  Leave unset (or '') for the add modal.
+
+  Usage (add modal):
+    {% include 'partials/driver_fields.html' %}
+
+  Usage (edit modal):
+    {% set field_prefix = 'ed-' %}
+    {% include 'partials/driver_fields.html' with context %}
+#}
+{% set p = field_prefix if field_prefix is defined else '' %}
+
+<label class="field">
+  License Number
+  <input name="license_number" {{ 'readonly' if p }} required
+         placeholder="N01-90-123456" id="{{ p }}ln">
+</label>
+
+<label class="field">
+  Sex
+  <select name="sex" id="{{ p }}sex">
+    <option value="M">Male</option>
+    <option value="F">Female</option>
+  </select>
+</label>
+
+<label class="field">
+  First Name
+  <input name="first_name" required id="{{ p }}fn">
+</label>
+
+<label class="field">
+  Middle Name
+  <input name="middle_name" id="{{ p }}mn">
+</label>
+
+<label class="field">
+  Last Name
+  <input name="last_name" required id="{{ p }}lnm">
+</label>
+
+<label class="field">
+  Date of Birth
+  <input type="date" name="date_of_birth" required id="{{ p }}dob">
+</label>
+
+<label class="field full">
+  Address
+  <input name="address" required id="{{ p }}addr">
+</label>
+
+<label class="field">
+  License Type
+  <select name="license_type" id="{{ p }}lt">
+    <option>Non-Professional</option>
+    <option>Professional</option>
+    <option>Student Permit</option>
+  </select>
+</label>
+
+<label class="field">
+  License Status
+  <select name="license_status" id="{{ p }}ls">
+    <option value="valid">Valid</option>
+    <option value="expired">Expired</option>
+    <option value="suspended">Suspended</option>
+    <option value="revoked">Revoked</option>
+  </select>
+</label>
+
+<label class="field">
+  Issuance Date
+  <input type="date" name="license_issuance_date" required id="{{ p }}isd">
+</label>
+
+<label class="field">
+  Expiration Date
+  <input type="date" name="license_expiration_date" required id="{{ p }}exd">
+</label>

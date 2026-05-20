@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% set page = 'drivers' %}
+{% from 'partials/macros.html' import page_header, panel_head %}
+
+{% block title %}Drivers — LTO IMS{% endblock %}
+
+{% block content %}
+{{ page_header('Management / Drivers', 'Driver Management', 'Add, edit, and manage registered driver records.') }}
+
+<div class="panel animate-fade-up">
+  {{ panel_head('Registered Drivers', '/drivers', 'Search license #, name, address…', 'Add Driver', 'add-driver') }}
+  <div class="overflow-x-auto"><table>
+    <thead><tr>
+      <th>License #</th><th>Name</th><th>Sex</th><th>Age</th>
+      <th>Type</th><th>Status</th><th>Expiration</th><th>Actions</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}<tr>
+      <td class="mono">{{ r.license_number }}</td>
+      <td>{{ r.first_name }} {{ r.middle_name or '' }} {{ r.last_name }}</td>
+      <td>{{ r.sex }}</td><td>{{ r.age }}</td><td>{{ r.license_type }}</td>
+      <td><span class="badge {{ r.license_status }}">{{ r.license_status }}</span></td>
+      <td>{{ r.license_expiration_date }}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick='editDriver({{ r | tojson }})'>Edit</button>
+        <a class="btn btn-sm btn-danger" href="/drivers/delete/{{ r.license_number }}" onclick="return confirm('Delete this driver?')">Del</a>
+      </td>
+    </tr>{% endfor %}
+    {% if not rows %}<tr><td colspan="8" class="empty">No drivers found.</td></tr>{% endif %}
+    </tbody>
+  </table></div>
+</div>
+
+{# ── ADD DRIVER MODAL ── #}
+<div class="modal-backdrop" id="add-driver"><div class="modal">
+  <div class="modal-head">
+    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
+    <h2>Add New Driver</h2>
+  </div>
+  <form method="POST" action="/drivers/add">
+    <div class="modal-body"><div class="form-grid">
+      {% include 'partials/driver_fields.html' with context %}
+    </div></div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Add Driver</button>
+    </div>
+  </form>
+</div></div>
+
+{# ── EDIT DRIVER MODAL ── #}
+<div class="modal-backdrop" id="edit-driver"><div class="modal">
+  <div class="modal-head">
+    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
+    <h2>Edit Driver</h2>
+  </div>
+  <form method="POST" action="/drivers/edit">
+    <div class="modal-body"><div class="form-grid">
+      {% set field_prefix = 'ed-' %}
+      {% include 'partials/driver_fields.html' with context %}
+    </div></div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+  </form>
+</div></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function editDriver(r) {
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v || ''; };
+  set('ed-ln',  r.license_number);
+  set('ed-fn',  r.first_name);
+  set('ed-mn',  r.middle_name);
+  set('ed-lnm', r.last_name);
+  set('ed-dob', r.date_of_birth);
+  set('ed-sex', r.sex);
+  set('ed-addr',r.address);
+  set('ed-lt',  r.license_type);
+  set('ed-ls',  r.license_status);
+  set('ed-isd', r.license_issuance_date);
+  set('ed-exd', r.license_expiration_date);
+  openModal('edit-driver');
+}
+</script>
+{% endblock %}

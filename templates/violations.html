@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% set page = 'violations' %}
+{% from 'partials/macros.html' import page_header, panel_head %}
+
+{% block title %}Violations — LTO IMS{% endblock %}
+
+{% block content %}
+{{ page_header('Management / Violations', 'Traffic Violations', 'Record and manage traffic violations.') }}
+
+<div class="panel animate-fade-up">
+  {{ panel_head('Violation Records', '/violations', 'Search plate, location, driver, type…', 'Record Violation', 'add-viol') }}
+  <div class="overflow-x-auto"><table>
+    <thead><tr>
+      <th>ID</th><th>Date</th><th>Time</th><th>Driver</th><th>Plate #</th>
+      <th>Type</th><th>Fine</th><th>Status</th><th>Location</th><th>Actions</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}<tr>
+      <td class="mono">{{ r.traffic_violation_id }}</td>
+      <td>{{ r.date }}</td>
+      <td>{{ r.time }}</td>
+      <td>{{ r.driver_first_name }} {{ r.driver_last_name }}</td>
+      <td class="mono">{{ r.plate_number }}</td>
+      <td>{{ r.violation_type or '—' }}</td>
+      <td class="tabular-nums">₱{{ "%.2f" | format(r.total_fine_amount) }}</td>
+      <td><span class="badge {{ r.violation_status }}">{{ r.violation_status }}</span></td>
+      <td>{{ r.location }}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick='editViol({{ r | tojson }})'>Edit</button>
+        <a class="btn btn-sm btn-danger" href="/violations/delete/{{ r.traffic_violation_id }}" onclick="return confirm('Delete?')">Del</a>
+      </td>
+    </tr>{% endfor %}
+    {% if not rows %}<tr><td colspan="10" class="empty">No violations found.</td></tr>{% endif %}
+    </tbody>
+  </table></div>
+</div>
+
+{% set viol_types = ['Overspeeding','Reckless Driving','Illegal Parking','No Helmet','Driving Under the Influence','No License','Disregarding Traffic Signs','Obstruction'] %}
+
+{# ── ADD VIOLATION MODAL ── #}
+<div class="modal-backdrop" id="add-viol"><div class="modal">
+  <div class="modal-head">
+    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
+    <h2>Record Traffic Violation</h2>
+  </div>
+  <form method="POST" action="/violations/add">
+    <div class="modal-body"><div class="form-grid">
+      <label class="field">
+        Driver
+        <select name="license_number" required>
+          {% for d in drivers_list %}
+            <option value="{{ d.license_number }}">{{ d.first_name }} {{ d.last_name }} ({{ d.license_number }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        Vehicle
+        <select name="vehicle_key" required>
+          {% for v in vehicles_list %}
+            <option value="{{ v.plate_number }}|{{ v.chassis_number }}">{{ v.make }} {{ v.model }} ({{ v.plate_number }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        Violation Type
+        <select name="violation_type">{% for t in viol_types %}<option>{{ t }}</option>{% endfor %}</select>
+      </label>
+      <label class="field">Fine Amount (₱) <input type="number" name="total_fine_amount" step="0.01" min="0" required></label>
+      <label class="field">Date <input type="date" name="date" required></label>
+      <label class="field">Time <input type="time" name="time" required></label>
+      <label class="field full">Location <input name="location" required placeholder="e.g. EDSA, Quezon City"></label>
+      <label class="field">Officer <input name="apprehending_officer" placeholder="Optional"></label>
+      <label class="field">
+        Status
+        <select name="violation_status">
+          <option value="unpaid">Unpaid</option>
+          <option value="paid">Paid</option>
+          <option value="contested">Contested</option>
+        </select>
+      </label>
+    </div></div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Record Violation</button>
+    </div>
+  </form>
+</div></div>
+
+{# ── EDIT VIOLATION MODAL ── #}
+<div class="modal-backdrop" id="edit-viol"><div class="modal">
+  <div class="modal-head">
+    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
+    <h2>Edit Violation</h2>
+  </div>
+  <form method="POST" action="/violations/edit">
+    <input type="hidden" name="traffic_violation_id" id="evl-id">
+    <div class="modal-body"><div class="form-grid">
+      <label class="field">
+        Violation Type
+        <select name="violation_type" id="evl-vt">{% for t in viol_types %}<option>{{ t }}</option>{% endfor %}</select>
+      </label>
+      <label class="field">Fine Amount (₱) <input type="number" name="total_fine_amount" step="0.01" min="0" required id="evl-fa"></label>
+      <label class="field">Date <input type="date" name="date" required id="evl-dt"></label>
+      <label class="field">Time <input type="time" name="time" required id="evl-tm"></label>
+      <label class="field full">Location <input name="location" required id="evl-loc"></label>
+      <label class="field">Officer <input name="apprehending_officer" id="evl-of"></label>
+      <label class="field">
+        Status
+        <select name="violation_status" id="evl-vs">
+          <option value="unpaid">Unpaid</option>
+          <option value="paid">Paid</option>
+          <option value="contested">Contested</option>
+        </select>
+      </label>
+    </div></div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+  </form>
+</div></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function editViol(r) {
+  const set = (id, v) => { document.getElementById(id).value = v || ''; };
+  set('evl-id',  r.traffic_violation_id);
+  set('evl-vt',  r.violation_type || 'Overspeeding');
+  set('evl-fa',  r.total_fine_amount);
+  set('evl-dt',  r.date);
+  set('evl-tm',  r.time);
+  set('evl-loc', r.location);
+  set('evl-of',  r.apprehending_officer);
+  set('evl-vs',  r.violation_status);
+  openModal('edit-viol');
+}
+</script>
+{% endblock %}

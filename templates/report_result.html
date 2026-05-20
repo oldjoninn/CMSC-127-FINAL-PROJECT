@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% set page = 'report_result' %}
+{% from 'partials/macros.html' import page_header %}
+
+{% block title %}Report #{{ report_id }} — LTO IMS{% endblock %}
+
+{% block content %}
+<a href="/reports" class="inline-flex items-center gap-1.5 text-lto-blue hover:text-lto-deep hover:underline text-[13px] font-medium mb-3.5">
+  ← Back to Reports
+</a>
+
+{{ page_header('Reports / Report #' ~ report_id, report_title, (rows | length) ~ ' record(s) found') }}
+
+{% if params_used %}
+<div class="flex flex-wrap gap-2 mb-4">
+  {% for k, v in params_used.items() %}
+    <span class="chip"><strong>{{ k }}:</strong> {{ v }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if message %}<div class="flash danger">{{ message }}</div>{% endif %}
+
+{% if rows %}
+  {% set keys = rows[0].keys() | list %}
+  <div class="panel animate-fade-up">
+    <div class="overflow-x-auto">
+      <table>
+        <thead>
+          <tr>{% for key in keys %}<th>{{ key | replace('_',' ') | title }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}<tr>
+            {% for key in keys %}
+              {% set val = r[key] %}
+              <td>
+                {% if val is none %}—
+                {% elif 'status' in key and val is string %}<span class="badge {{ val }}">{{ val }}</span>
+                {% elif 'fine' in key or 'amount' in key %}<span class="tabular-nums">₱{{ "%.2f" | format(val) }}</span>
+                {% else %}{{ val }}
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% elif not message %}
+  <div class="panel"><div class="empty">No matching records found for this report.</div></div>
+{% endif %}
+{% endblock %}

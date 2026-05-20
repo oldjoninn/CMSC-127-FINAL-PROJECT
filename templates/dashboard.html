@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% set page = 'dashboard' %}
+
+{% block title %}Dashboard — LTO IMS{% endblock %}
+
+{% block content %}
+<section class="hero overflow-hidden rounded-xl mb-6 text-white text-center shadow-xl">
+  <img src="{{ url_for('static', filename='manila-skyline.jpg') }}"
+       alt="" class="hero-bg" onerror="this.style.display='none'">
+  <div class="hero-overlay"></div>
+
+  <div class="py-14 px-8">
+    <div class="w-28 h-28 mx-auto mb-5 rounded-full overflow-hidden ring-4 ring-white/40 shadow-2xl bg-white flex items-center justify-center">
+      <img src="{{ url_for('static', filename='lto-logo.jpg') }}" alt="LTO seal"
+           class="w-full h-full object-contain p-1.5">
+    </div>
+    <div class="text-[11px] tracking-[.3em] uppercase opacity-80 mb-1">Republika ng Pilipinas</div>
+    <h1 class="font-display text-4xl md:text-5xl font-bold tracking-wide uppercase mb-2 drop-shadow">
+      Welcome to <span class="text-lto-gold">LTO IMS</span>
+    </h1>
+    <p class="text-sm opacity-90 mb-10">Land Transportation Office &mdash; Information Management System</p>
+
+    <div class="grid grid-cols-3 md:grid-cols-7 gap-3 max-w-[920px] mx-auto">
+      {% set quick_items = [
+        ('/drivers',       '🪪', 'Drivers',       true),
+        ('/vehicles',      '🚗', 'Vehicles',      false),
+        ('/registrations', '📋', 'Registrations', false),
+        ('/violations',    '🚨', 'Violations',    false),
+        ('/reports',       '📊', 'Reports',       false),
+        ('/reports/invalid_licenses',      '⚠️', 'Invalid', false),
+        ('/reports/expired_registrations', '📅', 'Expired', false),
+      ] %}
+      {% for href, icon, label, ok in quick_items %}
+      <a href="{{ href }}" class="group flex flex-col items-center gap-2.5 py-3.5 px-1.5 rounded-lg text-white hover:bg-white/10 hover:-translate-y-1 transition-all duration-200">
+        <div class="relative w-14 h-14 rounded-full bg-white/15 border border-white/30 flex items-center justify-center text-[22px] group-hover:bg-lto-gold/25 group-hover:border-lto-gold transition shadow-lg">
+          {{ icon }}
+          {% if ok %}<span class="absolute -right-0.5 -top-0.5 w-[18px] h-[18px] rounded-full bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center border-2 border-lto-deep">✓</span>{% endif %}
+        </div>
+        <span class="text-[11px] tracking-widest font-bold uppercase">{{ label }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="flex justify-between items-center px-5 py-2 text-[10.5px] bg-black/40 text-white/70 tracking-wider backdrop-blur">
+    <span>Release 1.0.0 &mdash; CMSC 127 Milestone 3</span>
+    <span>Republika ng Pilipinas · Department of Transportation</span>
+  </div>
+</section>
+
+<div class="section-title">System Overview</div>
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 mb-6">
+  {% set stats = [
+    ('Total Drivers',          's-drivers',     'text-lto-blue',  'text-slate-800'),
+    ('Total Vehicles',         's-vehicles',    'text-lto-blue',  'text-slate-800'),
+    ('Total Violations',       's-violations',  'text-lto-blue',  'text-slate-800'),
+    ('Unpaid Violations',      's-unpaid',      'text-red-500',   'text-red-600'),
+    ('Invalid Licenses',       's-expired-lic', 'text-amber-500', 'text-amber-600'),
+    ('Expired Registrations',  's-expired-reg', 'text-amber-500', 'text-amber-600'),
+  ] %}
+  {% for label, sid, top, val in stats %}
+  <div class="stat-card {{ top }}">
+    <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">{{ label }}</div>
+    <div class="text-3xl font-bold {{ val }} leading-none" id="{{ sid }}">–</div>
+    <div class="h-1 w-12 rounded-full mt-3 bg-current opacity-30"></div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+  <!-- Recent activity -->
+  <div class="lg:col-span-2 panel">
+    <div class="panel-head">
+      <span class="font-display text-sm font-bold uppercase tracking-wide text-slate-800">Recent Violations</span>
+      <span class="flex-1"></span>
+      <a href="/violations" class="text-xs text-lto-blue hover:text-lto-deep font-medium">View all →</a>
+    </div>
+    <div id="recent-feed" class="divide-y divide-slate-100">
+      <div class="empty">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Help card -->
+  <div class="panel">
+    <div class="panel-head">
+      <span class="font-display text-sm font-bold uppercase tracking-wide text-slate-800">Quick Help</span>
+    </div>
+    <div class="p-5 space-y-3 text-[13px] text-slate-600">
+      <div class="flex gap-3"><span class="text-lto-blue text-lg leading-none">💡</span><span><b class="text-slate-800">CRUD</b> — use the side modules to add, edit, or remove records.</span></div>
+      <div class="flex gap-3"><span class="text-lto-blue text-lg leading-none">📊</span><span><b class="text-slate-800">Reports</b> accept parameters; each one renders filtered results in real time.</span></div>
+      <div class="flex gap-3"><span class="text-lto-blue text-lg leading-none">🔍</span><span><b class="text-slate-800">Search</b> bars on each module support partial matches across multiple columns.</span></div>
+      <div class="flex gap-3"><span class="text-lto-blue text-lg leading-none">⚠️</span><span>Records with active dependencies cannot be deleted &mdash; resolve them first.</span></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Animated stat counters
+  fetch('/api/stats').then(r => r.json()).then(d => {
+    const map = {
+      's-drivers':     'total_drivers',
+      's-vehicles':    'total_vehicles',
+      's-violations':  'total_violations',
+      's-unpaid':      'unpaid_violations',
+      's-expired-lic': 'expired_licenses',
+      's-expired-reg': 'expired_registrations',
+    };
+    for (const [id, key] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      const target = +d[key] || 0;
+      let v = 0;
+      const step = Math.max(1, Math.ceil(target / 30));
+      const tick = () => { v = Math.min(v + step, target); el.textContent = v; if (v < target) requestAnimationFrame(tick); };
+      tick();
+    }
+  });
+
+  // Recent violations feed
+  fetch('/api/recent').then(r => r.json()).then(rows => {
+    const root = document.getElementById('recent-feed');
+    if (!rows.length) { root.innerHTML = '<div class="empty">No recent violations.</div>'; return; }
+    root.innerHTML = rows.map(r => `
+      <div class="px-5 py-3 flex items-center gap-3 hover:bg-slate-50 transition">
+        <div class="w-9 h-9 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-lg shrink-0">🚨</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-semibold text-slate-800 text-[13px] truncate">${r.violation_type || 'Traffic violation'} &middot; <span class="font-mono text-[11.5px] text-slate-500">${r.plate_number}</span></div>
+          <div class="text-[11.5px] text-slate-500 truncate">${r.driver_name} &mdash; ${r.location}</div>
+        </div>
+        <div class="text-right">
+          <div class="badge ${r.violation_status}">${r.violation_status}</div>
+          <div class="text-[11px] text-slate-500 mt-1">${r.date}</div>
+        </div>
+      </div>`).join('');
+  }).catch(() => {
+    document.getElementById('recent-feed').innerHTML = '<div class="empty">Recent activity unavailable.</div>';
+  });
+</script>
+{% endblock %}
