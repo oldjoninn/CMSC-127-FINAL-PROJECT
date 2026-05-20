@@ -40,13 +40,12 @@ Leave it blank if your MariaDB has no password:
 DB_PASSWORD=
 
 > `.env` is listed in `.gitignore` and will not be pushed to GitHub.
-```
 
 ### 4. Run the application
 
-
-python app.py
 ```
+python app.py
+
 
 Then open **http://localhost:5000** in your browser.
 
