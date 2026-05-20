@@ -133,11 +133,23 @@ function editViol(r) {
     set(id, d.toISOString().split('T')[0]);
   };
 
+  const setTime = (id, v) => {
+    if (!v) { set(id, ''); return; }
+    const parts = v.split(':');
+    if (parts.length >= 2) {
+      const h = parts[0].padStart(2, '0');
+      const m = parts[1].padStart(2, '0');
+      set(id, `${h}:${m}`);
+    } else {
+      set(id, v);
+    }
+  };
+
   set('evl-id',  r.traffic_violation_id);
   set('evl-vt',  r.violation_type || 'Overspeeding');
   set('evl-fa',  r.total_fine_amount);
   setDate('evl-dt',  r.date);
-  set('evl-tm',  r.time);
+  setTime('evl-tm',  r.time);
   set('evl-loc', r.location);
   set('evl-of',  r.apprehending_officer);
   set('evl-vs',  r.violation_status);
