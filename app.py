@@ -379,11 +379,38 @@ def vehicles_add():
 def vehicles_edit():
     try:
         v = _validate_vehicle(request.form, is_edit=True)
-        if not query(
-            "SELECT 1 FROM vehicle WHERE plate_number=%s AND chassis_number=%s",
+        
+        # Fetch the current state of the vehicle before making changes
+        current_vehicle = query(
+            "SELECT license_number FROM vehicle WHERE plate_number=%s AND chassis_number=%s",
             (v["plate_number"], v["chassis_number"]), fetchone=True
-        ):
+        )
+        
+        if not current_vehicle:
             raise ValidationError("Vehicle not found.")
+            
+        # If the ownership (license_number) is being changed, enforce the rules
+        if current_vehicle["license_number"] != v["license_number"]:
+            
+            # Check for active registrations
+            active_reg = query(
+                """SELECT 1 FROM vehicle_registration 
+                   WHERE plate_number=%s AND chassis_number=%s AND registration_status = 'active' LIMIT 1""",
+                (v["plate_number"], v["chassis_number"]), fetchone=True
+            )
+            if active_reg:
+                raise ValidationError("Cannot change ownership: Vehicle has an active registration. It must be unregistered first.")
+                
+            # Check for unpaid violations
+            unpaid_viol = query(
+                """SELECT 1 FROM traffic_violation 
+                   WHERE plate_number=%s AND chassis_number=%s AND violation_status = 'unpaid' LIMIT 1""",
+                (v["plate_number"], v["chassis_number"]), fetchone=True
+            )
+            if unpaid_viol:
+                raise ValidationError("Cannot change ownership: Vehicle has unpaid violations.")
+            
+        # If all checks pass, execute the update
         execute(
             """UPDATE vehicle SET
                engine_number=%(engine_number)s, vehicle_type=%(vehicle_type)s,
@@ -394,6 +421,7 @@ def vehicles_edit():
             v,
         )
         flash("Vehicle updated.", "success")
+        
     except ValidationError as e:
         flash(str(e), "danger")
     except Error as e:
