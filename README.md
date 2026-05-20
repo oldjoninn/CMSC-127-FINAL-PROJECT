@@ -44,7 +44,7 @@ DB_PASSWORD=
 
 ### 4. Run the application
 
-```bash
+
 python app.py
 ```
 
