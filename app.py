@@ -180,6 +180,14 @@ def index():
 
 @app.route("/drivers")
 def drivers():
+    # Reconcile any licenses whose expiration date has passed but whose status
+    # is still "valid". "suspended" and "revoked" are left untouched.
+    execute(
+        """UPDATE driver
+              SET license_status='expired'
+            WHERE license_status='valid'
+              AND license_expiration_date < CURDATE()"""
+    )
     q = clean(request.args.get("q"))
     sql = """SELECT *, TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) AS age
              FROM driver"""
@@ -241,6 +249,11 @@ def _validate_driver(f, *, is_edit=False):
         raise ValidationError("Expiration date must be on or after issuance date.")
     if issued < dob:
         raise ValidationError("Issuance date cannot precede date of birth.")
+
+    # Auto-expire: a license whose expiration date has passed cannot be "valid".
+    # "suspended" and "revoked" take precedence and are left untouched.
+    if expires < date.today() and license_status == "valid":
+        license_status = "expired"
 
     return dict(
         license_number=license_number, first_name=first_name, middle_name=middle_name,
@@ -475,6 +488,14 @@ def vehicles_delete(plate_number, chassis_number):
 
 @app.route("/registrations")
 def registrations():
+    # Reconcile any registrations whose expiration date has passed but whose
+    # status is still "active". "suspended" and "revoked" are left untouched.
+    execute(
+        """UPDATE vehicle_registration
+              SET registration_status='expired'
+            WHERE registration_status='active'
+              AND expiration_date < CURDATE()"""
+    )
     q = clean(request.args.get("q"))
     sql = """SELECT vr.*, v.make, v.model, v.year AS vehicle_year,
                     d.first_name AS owner_first_name, d.last_name AS owner_last_name
@@ -512,6 +533,11 @@ def _validate_registration(f, *, is_edit=False):
                           VALID_REG_STATUS, "Status")
     if exp_date < reg_date:
         raise ValidationError("Expiration date must be on or after registration date.")
+
+    # Auto-expire: a registration whose expiration date has passed cannot be "active".
+    # "suspended" and "revoked" take precedence and are left untouched.
+    if exp_date < date.today() and status == "active":
+        status = "expired"
 
     out = dict(registration_number=reg_num, registration_date=reg_date,
                expiration_date=exp_date, registration_status=status)
