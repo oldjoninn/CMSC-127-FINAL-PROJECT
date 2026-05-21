@@ -150,6 +150,14 @@ def must_be_in(value, allowed, field):
     return value
 
 
+def _add_years(d, years):
+    # date.replace falls over on Feb 29 → non-leap year; clamp to Feb 28.
+    try:
+        return d.replace(year=d.year + years)
+    except ValueError:
+        return d.replace(year=d.year + years, day=28)
+
+
 def _reconcile_license_statuses():
     """Auto-update driver.license_status based on current data:
        - expiration_date < today                          -> expired
@@ -239,33 +247,64 @@ def _validate_driver(f, *, is_edit=False):
     license_type   = must_be_in(require(f.get("license_type"),   "License type"),   VALID_LICENSE_TYPES,  "License type")
     license_status = must_be_in(require(f.get("license_status"), "License status").lower(), VALID_LICENSE_STATUS, "License status")
     issued  = parse_date(f.get("license_issuance_date"),   "Issuance date")
-    expires = parse_date(f.get("license_expiration_date"), "Expiration date")
 
     if dob > date.today():
         raise ValidationError("Date of birth cannot be in the future.")
-    
+
     # Calculate exact age on the date the license was issued
     age_at_issuance = issued.year - dob.year - ((issued.month, issued.day) < (dob.month, dob.day))
-    
+
     if license_type == "Student Permit" and age_at_issuance < 16:
         raise ValidationError("Driver must be at least 16 years old at issuance for a Student Permit.")
     elif license_type == "Non-Professional" and age_at_issuance < 17:
         raise ValidationError("Driver must be at least 17 years old at issuance for a Non-Professional license.")
     elif license_type == "Professional" and age_at_issuance < 18:
         raise ValidationError("Driver must be at least 18 years old at issuance for a Professional license.")
-        
+
     if age_at_issuance > 120:
         raise ValidationError("Date of birth is unrealistic.")
-    
+
     current_age = date.today().year - dob.year - ((date.today().month, date.today().day) < (dob.month, dob.day))
 
     if current_age > 120:
         raise ValidationError("Date of birth is unrealistic.")
-    
-    if expires < issued:
-        raise ValidationError("Expiration date must be on or after issuance date.")
+
     if issued < dob:
         raise ValidationError("Issuance date cannot precede date of birth.")
+
+    # Expiration date is system-managed, not user-set.
+   
+    if not is_edit:
+        expires = _add_years(issued, 10)
+    else:
+        existing = query(
+            "SELECT license_expiration_date FROM driver WHERE license_number=%s",
+            (license_number,), fetchone=True,
+        )
+        if not existing:
+            raise ValidationError("Driver not found.")
+        old_expires = existing["license_expiration_date"]
+
+        requested = parse_date(f.get("license_expiration_date"), "Expiration date")
+        if requested < old_expires:
+            raise ValidationError("Expiration date cannot be moved earlier than the current one.")
+        if requested > old_expires:
+            # Renewal: block if expired ≥ 10 years ago.
+            if old_expires < date.today() and _add_years(old_expires, 10) <= date.today():
+                raise ValidationError(
+                    "Cannot renew: licence has been expired for 10 years or more."
+                )
+            has_violations = query(
+                "SELECT 1 FROM traffic_violation WHERE license_number=%s LIMIT 1",
+                (license_number,), fetchone=True,
+            )
+            renewal_years = 5 if has_violations else 10
+            expires = _add_years(old_expires, renewal_years)
+        else:
+            expires = old_expires
+
+    if expires < issued:
+        raise ValidationError("Expiration date must be on or after issuance date.")
 
     # Auto-reconcile license status on save:
     #   expired (by date) takes precedence; otherwise unpaid violations older
