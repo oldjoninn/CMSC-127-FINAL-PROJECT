@@ -353,8 +353,20 @@ def drivers_delete(license_number):
         if not existing:
             flash("Driver not found.", "danger")
             return redirect(url_for("drivers"))
+            
+        # PRE-FLIGHT CHECK: Do they own vehicles?
+        if query("SELECT 1 FROM vehicle WHERE license_number=%s LIMIT 1", (license_number,), fetchone=True):
+            raise ValidationError("Cannot delete driver: They still have vehicles registered under their name.")
+            
+        # PRE-FLIGHT CHECK: Do they have violations?
+        if query("SELECT 1 FROM traffic_violation WHERE license_number=%s LIMIT 1", (license_number,), fetchone=True):
+            raise ValidationError("Cannot delete driver: They are linked to existing traffic violation records.")
+
         execute("DELETE FROM driver WHERE license_number=%s", (license_number,))
         flash("Driver deleted.", "success")
+        
+    except ValidationError as e:
+        flash(str(e), "danger")
     except Error as e:
         flash(db_error_message(e), "danger")
     return redirect(url_for("drivers"))
@@ -504,15 +516,29 @@ def vehicles_edit():
 @app.route("/vehicles/delete/<plate_number>/<chassis_number>")
 def vehicles_delete(plate_number, chassis_number):
     try:
+        # Check if vehicle exists
         if not query(
             "SELECT 1 FROM vehicle WHERE plate_number=%s AND chassis_number=%s",
             (plate_number, chassis_number), fetchone=True
         ):
             flash("Vehicle not found.", "danger")
             return redirect(url_for("vehicles"))
+            
+        # PRE-FLIGHT CHECK: Does it have registrations?
+        if query("SELECT 1 FROM vehicle_registration WHERE plate_number=%s AND chassis_number=%s LIMIT 1", (plate_number, chassis_number), fetchone=True):
+            raise ValidationError("Cannot delete vehicle: It still has registration records associated with it.")
+            
+        # PRE-FLIGHT CHECK: Does it have violations?
+        if query("SELECT 1 FROM traffic_violation WHERE plate_number=%s AND chassis_number=%s LIMIT 1", (plate_number, chassis_number), fetchone=True):
+            raise ValidationError("Cannot delete vehicle: It is linked to existing traffic violations.")
+
+        # If it passes the checks, safe to delete
         execute("DELETE FROM vehicle WHERE plate_number=%s AND chassis_number=%s",
                 (plate_number, chassis_number))
         flash("Vehicle deleted.", "success")
+        
+    except ValidationError as e:
+        flash(str(e), "danger") # Catches our specific messages
     except Error as e:
         flash(db_error_message(e), "danger")
     return redirect(url_for("vehicles"))
