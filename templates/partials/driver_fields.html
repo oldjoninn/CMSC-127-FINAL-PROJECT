@@ -89,5 +89,30 @@
 
 <label class="field">
   Expiration Date
-  <input type="date" name="license_expiration_date" required id="{{ p }}exd">
+  {# System-managed: computed from issuance date on add; auto-renewed on edit
+     (5 yrs with violations, 10 yrs otherwise) when "Renew license" is ticked.
+     The input is readonly so the user cannot pick an arbitrary value. #}
+  <input type="date" name="license_expiration_date" required readonly
+         id="{{ p }}exd" tabindex="-1" aria-readonly="true"
+         style="background:#f3f4f6;color:#374151;cursor:not-allowed">
+  <small class="hint" id="{{ p }}exd-hint" style="color:#6b7280;font-size:0.8rem">
+    {% if p %}
+      Auto-renews from current expiration when "Renew license" is ticked.
+    {% else %}
+      Auto-set to 10 years after the issuance date.
+    {% endif %}
+  </small>
 </label>
+
+{% if p %}
+<label class="field" style="align-self:end">
+  <span style="display:flex;align-items:center;gap:0.5rem">
+    <input type="checkbox" id="{{ p }}renew" onchange="toggleRenew(this)">
+    Renew license
+  </span>
+  <small class="hint" style="color:#6b7280;font-size:0.8rem">
+    Adds 5 years (with violations) or 10 years to the current expiration.
+    Cannot renew if expired for 10+ years.
+  </small>
+</label>
+{% endif %}

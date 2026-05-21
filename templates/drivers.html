@@ -79,16 +79,59 @@
 
 {% block scripts %}
 <script>
+// Helper to format an HTTP date string into YYYY-MM-DD.
+function toIsoDate(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().split('T')[0];
+}
+
+// Add years to a YYYY-MM-DD string, clamping Feb 29 to Feb 28 like the server.
+function addYears(iso, years) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  const targetYear = y + years;
+  const daysInMonth = new Date(targetYear, m, 0).getDate();
+  const day = Math.min(d, daysInMonth);
+  return `${targetYear}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+
+// ── ADD modal: auto-fill expiration as issuance + 10 years for preview.
+(function () {
+  const isd = document.getElementById('isd');
+  const exd = document.getElementById('exd');
+  if (!isd || !exd) return;
+  const sync = () => { exd.value = isd.value ? addYears(isd.value, 10) : ''; };
+  isd.addEventListener('change', sync);
+  isd.addEventListener('input',  sync);
+})();
+
+// ── EDIT modal: the "Renew license" checkbox swaps the readonly expiration
+//    field between the current value and a placeholder future date. The
+//    backend detects requested > old_expires and computes the actual renewal
+//    term (5 or 10 years from old_expires).
+function toggleRenew(cb) {
+  const exd = document.getElementById('ed-exd');
+  const hint = document.getElementById('ed-exd-hint');
+  if (!exd) return;
+  if (cb.checked) {
+    exd.dataset.original = exd.value;
+    // Any date > old_expires triggers renewal server-side; the server then
+    // recomputes the real expiration based on violation history.
+    exd.value = addYears(exd.value || new Date().toISOString().slice(0,10), 1);
+    if (hint) hint.textContent =
+      'Renewal pending — server will set 5 yrs (with violations) or 10 yrs from current expiration.';
+  } else {
+    if (exd.dataset.original !== undefined) exd.value = exd.dataset.original;
+    if (hint) hint.textContent =
+      'Auto-renews from current expiration when "Renew license" is ticked.';
+  }
+}
+
 function editDriver(r) {
   const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v || ''; };
-
-  // Helper to format HTTP date strings into YYYY-MM-DD
-  const setDate = (id, v) => {
-    if (!v) { set(id, ''); return; }
-    const d = new Date(v);
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    set(id, d.toISOString().split('T')[0]);
-  };
+  const setDate = (id, v) => set(id, toIsoDate(v));
 
   set('ed-ln',  r.license_number);
   set('ed-fn',  r.first_name);
@@ -101,6 +144,18 @@ function editDriver(r) {
   set('ed-ls',  r.license_status);
   setDate('ed-isd', r.license_issuance_date);
   setDate('ed-exd', r.license_expiration_date);
+
+  // Reset the renewal toggle every time the modal opens.
+  const renew = document.getElementById('ed-renew');
+  if (renew) {
+    renew.checked = false;
+    const exd = document.getElementById('ed-exd');
+    if (exd) delete exd.dataset.original;
+    const hint = document.getElementById('ed-exd-hint');
+    if (hint) hint.textContent =
+      'Auto-renews from current expiration when "Renew license" is ticked.';
+  }
+
   openModal('edit-driver');
 }
 </script>
