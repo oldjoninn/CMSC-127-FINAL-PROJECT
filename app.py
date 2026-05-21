@@ -150,6 +150,30 @@ def must_be_in(value, allowed, field):
     return value
 
 
+def _reconcile_license_statuses():
+    """Auto-update driver.license_status based on current data:
+       - expiration_date < today                          -> expired
+       - any unpaid violation older than 15 days          -> suspended
+       - currently suspended but no overdue unpaid one    -> valid
+       'revoked' is terminal and is never overwritten."""
+    execute("""
+        UPDATE driver d
+        LEFT JOIN (
+            SELECT DISTINCT license_number
+              FROM traffic_violation
+             WHERE violation_status = 'unpaid'
+               AND DATEDIFF(CURDATE(), date) > 15
+        ) overdue ON overdue.license_number = d.license_number
+        SET d.license_status = CASE
+            WHEN d.license_expiration_date < CURDATE() THEN 'expired'
+            WHEN overdue.license_number IS NOT NULL     THEN 'suspended'
+            WHEN d.license_status = 'suspended'         THEN 'valid'
+            ELSE d.license_status
+        END
+        WHERE d.license_status <> 'revoked'
+    """)
+
+
 def db_error_message(e):
     """Translate common MySQL errors into user-friendly text."""
     msg = str(e)
@@ -180,14 +204,7 @@ def index():
 
 @app.route("/drivers")
 def drivers():
-    # Reconcile any licenses whose expiration date has passed but whose status
-    # is still "valid". "suspended" and "revoked" are left untouched.
-    execute(
-        """UPDATE driver
-              SET license_status='expired'
-            WHERE license_status='valid'
-              AND license_expiration_date < CURDATE()"""
-    )
+    _reconcile_license_statuses()
     q = clean(request.args.get("q"))
     sql = """SELECT *, TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) AS age
              FROM driver"""
@@ -250,10 +267,27 @@ def _validate_driver(f, *, is_edit=False):
     if issued < dob:
         raise ValidationError("Issuance date cannot precede date of birth.")
 
-    # Auto-expire: a license whose expiration date has passed cannot be "valid".
-    # "suspended" and "revoked" take precedence and are left untouched.
-    if expires < date.today() and license_status == "valid":
-        license_status = "expired"
+    # Auto-reconcile license status on save:
+    #   expired (by date) takes precedence; otherwise unpaid violations older
+    #   than 15 days suspend the license; a previously suspended license whose
+    #   overdue violations are cleared is restored to "valid". "revoked" is
+    #   terminal and is never rewritten here.
+    if license_status != "revoked":
+        if expires < date.today():
+            license_status = "expired"
+        elif is_edit:
+            overdue = query(
+                """SELECT 1 FROM traffic_violation
+                    WHERE license_number=%s
+                      AND violation_status='unpaid'
+                      AND DATEDIFF(CURDATE(), date) > 15
+                    LIMIT 1""",
+                (license_number,), fetchone=True,
+            )
+            if overdue:
+                license_status = "suspended"
+            elif license_status == "suspended":
+                license_status = "valid"
 
     return dict(
         license_number=license_number, first_name=first_name, middle_name=middle_name,
@@ -620,6 +654,7 @@ def registrations_delete(registration_number):
 
 @app.route("/violations")
 def violations():
+    _reconcile_license_statuses()
     q = clean(request.args.get("q"))
     sql = """SELECT tv.*, tvt.violation_type,
                     d.first_name AS driver_first_name, d.last_name AS driver_last_name
@@ -705,6 +740,7 @@ def violations_add():
                 "INSERT INTO traffic_violation_type (traffic_violation_id, violation_type) VALUES (%s,%s)",
                 (vid, vt),
             )
+        _reconcile_license_statuses()
         flash("Violation recorded.", "success")
     except ValidationError as e:
         flash(str(e), "danger")
@@ -749,6 +785,7 @@ def violations_edit():
                 )
         else:
             execute("DELETE FROM traffic_violation_type WHERE traffic_violation_id=%s", (vid,))
+        _reconcile_license_statuses()
         flash("Violation updated.", "success")
     except ValidationError as e:
         flash(str(e), "danger")
@@ -1004,6 +1041,7 @@ def report_vehicles_in_violations():
 
 @app.route("/api/stats")
 def api_stats():
+    _reconcile_license_statuses()
     stats = query("""
         SELECT
           (SELECT COUNT(*) FROM driver)                                                 AS total_drivers,
