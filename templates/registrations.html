@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% set page = 'registrations' %}
-{% from 'partials/macros.html' import page_header, panel_head %}
+{% from 'partials/macros.html' import page_header, panel_head, row_actions %}
+{% from 'partials/icons.html' import icon %}
 
 {% block title %}Registrations — LTO IMS{% endblock %}
 
@@ -23,8 +24,9 @@
       <td><span class="badge {{ r.registration_status }}">{{ r.registration_status }}</span></td>
       <td>{{ r.owner_first_name }} {{ r.owner_last_name }}</td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick='editReg({{ r | tojson }})'>Edit</button>
-        <a class="btn btn-sm btn-danger" href="/registrations/delete/{{ r.registration_number }}" onclick="return confirm('Delete?')">Del</a>
+        {{ row_actions('editReg(' ~ (r | tojson) ~ ')',
+                       '/registrations/delete/' ~ r.registration_number,
+                       'Delete this registration?') }}
       </td>
     </tr>{% endfor %}
     {% if not rows %}<tr><td colspan="7" class="empty">No registrations found.</td></tr>{% endif %}
@@ -33,16 +35,21 @@
 </div>
 
 {# ── ADD REGISTRATION MODAL ── #}
-<div class="modal-backdrop" id="add-reg"><div class="modal">
+<div class="modal-backdrop" id="add-reg" role="dialog" aria-modal="true" aria-labelledby="add-reg-title"><div class="modal">
   <div class="modal-head">
-    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
-    <h2>Add Registration</h2>
+    <span class="text-lto-blue">{{ icon('registrations', class='w-6 h-6') }}</span>
+    <h2 id="add-reg-title">Add Registration</h2>
   </div>
   <form method="POST" action="/registrations/add">
     <div class="modal-body"><div class="form-grid">
       <label class="field full">
         Registration Number
-        <input name="registration_number" required placeholder="REG-2025-00001">
+        {# Pattern mirrors REGISTRATION_RE in app.py: REG-YYYY-NNNNN. #}
+        <input name="registration_number" required placeholder="REG-2025-00001"
+               pattern="REG-[0-9]{4}-[0-9]{5}"
+               title="Format: REG-YYYY-NNNNN (e.g. REG-2025-00001)"
+               maxlength="14" autocomplete="off"
+               style="text-transform:uppercase">
       </label>
       <label class="field full">
         Vehicle
@@ -66,21 +73,28 @@
       </label>
     </div></div>
     <div class="form-actions">
-      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
-      <button type="submit" class="btn btn-primary">Add Registration</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">
+        {{ icon('close', class='w-4 h-4') }} Cancel
+      </button>
+      <button type="submit" class="btn btn-primary">
+        {{ icon('plus', class='w-4 h-4', stroke_width=2.25) }} Add Registration
+      </button>
     </div>
   </form>
 </div></div>
 
 {# ── EDIT REGISTRATION MODAL ── #}
-<div class="modal-backdrop" id="edit-reg"><div class="modal">
+<div class="modal-backdrop" id="edit-reg" role="dialog" aria-modal="true" aria-labelledby="edit-reg-title"><div class="modal">
   <div class="modal-head">
-    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
-    <h2>Edit Registration</h2>
+    <span class="text-lto-blue">{{ icon('edit', class='w-6 h-6') }}</span>
+    <h2 id="edit-reg-title">Edit Registration</h2>
   </div>
   <form method="POST" action="/registrations/edit">
     <div class="modal-body"><div class="form-grid">
-      <label class="field full">Registration Number <input name="registration_number" readonly id="er-rn"></label>
+      <label class="field full">Registration Number
+        <input name="registration_number" readonly id="er-rn"
+               style="text-transform:uppercase">
+      </label>
       <label class="field">Registration Date <input type="date" name="registration_date" required id="er-rd"></label>
       <label class="field">Expiration Date   <input type="date" name="expiration_date"   required id="er-ed"></label>
       <label class="field full">
@@ -93,8 +107,12 @@
       </label>
     </div></div>
     <div class="form-actions">
-      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
-      <button type="submit" class="btn btn-primary">Save Changes</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">
+        {{ icon('close', class='w-4 h-4') }} Cancel
+      </button>
+      <button type="submit" class="btn btn-primary">
+        {{ icon('check', class='w-4 h-4', stroke_width=2.25) }} Save Changes
+      </button>
     </div>
   </form>
 </div></div>
@@ -104,9 +122,17 @@
 <script>
 function editReg(r) {
   const set = (id, v) => { document.getElementById(id).value = v || ''; };
+
+  const setDate = (id, v) => {
+    if (!v) { set(id, ''); return; }
+    const d = new Date(v);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    set(id, d.toISOString().split('T')[0]);
+  };
+
   set('er-rn', r.registration_number);
-  set('er-rd', r.registration_date);
-  set('er-ed', r.expiration_date);
+  setDate('er-rd', r.registration_date);
+  setDate('er-ed', r.expiration_date);
   set('er-rs', r.registration_status);
   openModal('edit-reg');
 }

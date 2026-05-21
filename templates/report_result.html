@@ -1,12 +1,13 @@
 {% extends 'base.html' %}
 {% set page = 'report_result' %}
 {% from 'partials/macros.html' import page_header %}
+{% from 'partials/icons.html' import icon %}
 
 {% block title %}Report #{{ report_id }} — LTO IMS{% endblock %}
 
 {% block content %}
 <a href="/reports" class="inline-flex items-center gap-1.5 text-lto-blue hover:text-lto-deep hover:underline text-[13px] font-medium mb-3.5">
-  ← Back to Reports
+  {{ icon('arrow-left', class='w-4 h-4') }} Back to Reports
 </a>
 
 {{ page_header('Reports / Report #' ~ report_id, report_title, (rows | length) ~ ' record(s) found') }}

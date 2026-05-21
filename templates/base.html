@@ -1,3 +1,12 @@
+{# templates/base.html
+   ───────────────────
+   Shared layout for every page. Provides:
+     • Tailwind + design tokens 
+     • Government utility strip + top navigation
+     • Flash-message rendering
+     • Footer + shared modal JS
+#}
+{% from 'partials/icons.html' import icon %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -128,18 +137,31 @@
 </head>
 <body class="font-sans bg-slate-100 text-slate-800 min-h-screen antialiased">
 
-<!-- UTILITY STRIP -->
+<!-- UTILITY STRIP
+     Government banner (per gov.ph guidelines) + scrolling public advisories.
+     The marquee duplicates its items so the CSS `scrollx` keyframes can loop
+     seamlessly by translating exactly -50%. -->
+{% set advisories = [
+  ('alert',         'Renew your license at least 60 days before expiration.'),
+  ('registrations', 'Smoke-belching vehicles are subject to immediate apprehension.'),
+  ('vehicles',      'New vehicle registration requires emission test and CTPL insurance.'),
+] %}
 <div class="bg-lto-red text-white text-[11px] overflow-hidden">
   <div class="max-w-[1280px] mx-auto px-6 py-1 flex items-center gap-6">
-    <span class="font-bold tracking-widest uppercase shrink-0">🇵🇭 Official Government Website</span>
+    <span class="font-bold tracking-widest uppercase shrink-0 inline-flex items-center gap-1.5">
+      {{ icon('flag-ph', class='w-4 h-3.5', aria_label='Republic of the Philippines') }}
+      Official Government Website
+    </span>
     <div class="flex-1 overflow-hidden">
       <div class="marquee-track inline-flex whitespace-nowrap gap-12 opacity-90">
-        <span>⚠ Renew your license at least 60 days before expiration.</span>
-        <span>📋 Smoke-belching vehicles are subject to immediate apprehension.</span>
-        <span>🚗 New vehicle registration requires emission test and CTPL insurance.</span>
-        <span>⚠ Renew your license at least 60 days before expiration.</span>
-        <span>📋 Smoke-belching vehicles are subject to immediate apprehension.</span>
-        <span>🚗 New vehicle registration requires emission test and CTPL insurance.</span>
+        {# Render the advisory list twice for a seamless infinite scroll. #}
+        {% for _ in range(2) %}
+          {% for ic, msg in advisories %}
+            <span class="inline-flex items-center gap-1.5">
+              {{ icon(ic, class='w-3.5 h-3.5') }}{{ msg }}
+            </span>
+          {% endfor %}
+        {% endfor %}
       </div>
     </div>
   </div>

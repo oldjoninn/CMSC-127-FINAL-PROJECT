@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% set page = 'drivers' %}
-{% from 'partials/macros.html' import page_header, panel_head %}
+{% from 'partials/macros.html' import page_header, panel_head, row_actions %}
+{% from 'partials/icons.html' import icon %}
 
 {% block title %}Drivers — LTO IMS{% endblock %}
 
@@ -22,8 +23,9 @@
       <td><span class="badge {{ r.license_status }}">{{ r.license_status }}</span></td>
       <td>{{ r.license_expiration_date }}</td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick='editDriver({{ r | tojson }})'>Edit</button>
-        <a class="btn btn-sm btn-danger" href="/drivers/delete/{{ r.license_number }}" onclick="return confirm('Delete this driver?')">Del</a>
+        {{ row_actions('editDriver(' ~ (r | tojson) ~ ')',
+                       '/drivers/delete/' ~ r.license_number,
+                       'Delete this driver?') }}
       </td>
     </tr>{% endfor %}
     {% if not rows %}<tr><td colspan="8" class="empty">No drivers found.</td></tr>{% endif %}
@@ -32,27 +34,31 @@
 </div>
 
 {# ── ADD DRIVER MODAL ── #}
-<div class="modal-backdrop" id="add-driver"><div class="modal">
+<div class="modal-backdrop" id="add-driver" role="dialog" aria-modal="true" aria-labelledby="add-driver-title"><div class="modal">
   <div class="modal-head">
-    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
-    <h2>Add New Driver</h2>
+    <span class="text-lto-blue">{{ icon('drivers', class='w-6 h-6') }}</span>
+    <h2 id="add-driver-title">Add New Driver</h2>
   </div>
   <form method="POST" action="/drivers/add">
     <div class="modal-body"><div class="form-grid">
       {% include 'partials/driver_fields.html' with context %}
     </div></div>
     <div class="form-actions">
-      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
-      <button type="submit" class="btn btn-primary">Add Driver</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">
+        {{ icon('close', class='w-4 h-4') }} Cancel
+      </button>
+      <button type="submit" class="btn btn-primary">
+        {{ icon('plus', class='w-4 h-4', stroke_width=2.25) }} Add Driver
+      </button>
     </div>
   </form>
 </div></div>
 
 {# ── EDIT DRIVER MODAL ── #}
-<div class="modal-backdrop" id="edit-driver"><div class="modal">
+<div class="modal-backdrop" id="edit-driver" role="dialog" aria-modal="true" aria-labelledby="edit-driver-title"><div class="modal">
   <div class="modal-head">
-    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
-    <h2>Edit Driver</h2>
+    <span class="text-lto-blue">{{ icon('edit', class='w-6 h-6') }}</span>
+    <h2 id="edit-driver-title">Edit Driver</h2>
   </div>
   <form method="POST" action="/drivers/edit">
     <div class="modal-body"><div class="form-grid">
@@ -60,8 +66,12 @@
       {% include 'partials/driver_fields.html' with context %}
     </div></div>
     <div class="form-actions">
-      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
-      <button type="submit" class="btn btn-primary">Save Changes</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">
+        {{ icon('close', class='w-4 h-4') }} Cancel
+      </button>
+      <button type="submit" class="btn btn-primary">
+        {{ icon('check', class='w-4 h-4', stroke_width=2.25) }} Save Changes
+      </button>
     </div>
   </form>
 </div></div>
@@ -71,17 +81,26 @@
 <script>
 function editDriver(r) {
   const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v || ''; };
+
+  // Helper to format HTTP date strings into YYYY-MM-DD
+  const setDate = (id, v) => {
+    if (!v) { set(id, ''); return; }
+    const d = new Date(v);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    set(id, d.toISOString().split('T')[0]);
+  };
+
   set('ed-ln',  r.license_number);
   set('ed-fn',  r.first_name);
   set('ed-mn',  r.middle_name);
   set('ed-lnm', r.last_name);
-  set('ed-dob', r.date_of_birth);
+  setDate('ed-dob', r.date_of_birth);
   set('ed-sex', r.sex);
   set('ed-addr',r.address);
   set('ed-lt',  r.license_type);
   set('ed-ls',  r.license_status);
-  set('ed-isd', r.license_issuance_date);
-  set('ed-exd', r.license_expiration_date);
+  setDate('ed-isd', r.license_issuance_date);
+  setDate('ed-exd', r.license_expiration_date);
   openModal('edit-driver');
 }
 </script>
