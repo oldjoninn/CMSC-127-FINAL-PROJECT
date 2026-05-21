@@ -1,6 +1,6 @@
 """
 LTO Information Management System – Flask GUI
-CMSC 127 Milestone 3
+CMSC 127 Project Presentation
 """
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
@@ -63,6 +63,12 @@ VALID_LICENSE_STATUS = {"valid", "expired", "suspended", "revoked"}
 VALID_OWNERSHIP      = {"private", "public"}
 VALID_REG_STATUS     = {"active", "expired", "suspended", "revoked"}
 VALID_VIOL_STATUS    = {"unpaid", "paid", "contested", "dismissed"}
+
+# Identifier format patterns. 
+LICENSE_RE      = re.compile(r"^[A-Z][0-9]{2}-[0-9]{2}-[0-9]{6}$")
+PLATE_RE        = re.compile(r"^[A-Z]{3} [0-9]{3,4}$")
+CHASSIS_RE      = re.compile(r"^[A-Z]{2,5}-[0-9]{3,8}$")
+REGISTRATION_RE = re.compile(r"^REG-[0-9]{4}-[0-9]{5}$")
 
 
 class ValidationError(Exception):
@@ -191,9 +197,14 @@ def drivers():
 
 
 def _validate_driver(f, *, is_edit=False):
-    license_number = require(f.get("license_number"), "License number")
-    if not re.match(r"^[A-Za-z0-9 \-]{4,20}$", license_number):
-        raise ValidationError("License number format is invalid (4–20 chars, alphanumeric/dash/space).")
+    # Uppercase before validating so lowercase user input (e.g. "n01-90-...")
+    # still matches the canonical format without rejecting it.
+    license_number = require(f.get("license_number"), "License number").upper()
+    if not LICENSE_RE.match(license_number):
+        raise ValidationError(
+            "License number must follow the format L##-##-###### "
+            "(e.g. N01-90-123456)."
+        )
     first_name = require(f.get("first_name"), "First name")
     last_name  = require(f.get("last_name"),  "Last name")
     middle_name = clean(f.get("middle_name"))
@@ -220,8 +231,12 @@ def _validate_driver(f, *, is_edit=False):
         
     if age_at_issuance > 120:
         raise ValidationError("Date of birth is unrealistic.")
-    if age > 120:
+    
+    current_age = date.today().year - dob.year - ((date.today().month, date.today().day) < (dob.month, dob.day))
+
+    if current_age > 120:
         raise ValidationError("Date of birth is unrealistic.")
+    
     if expires < issued:
         raise ValidationError("Expiration date must be on or after issuance date.")
     if issued < dob:
@@ -322,11 +337,21 @@ def vehicles():
 
 
 def _validate_vehicle(f, *, is_edit=False):
-    plate   = require(f.get("plate_number"), "Plate number").upper()
-    chassis = require(f.get("chassis_number"), "Chassis number")
-    engine  = require(f.get("engine_number"), "Engine number")
-    if not re.match(r"^[A-Z0-9 \-]{2,15}$", plate):
-        raise ValidationError("Plate number format is invalid.")
+    # Normalize before validation: uppercase letters, collapse extra whitespace.
+    # This lets the same regex accept "abc 1234" and "ABC  1234".
+    plate   = re.sub(r"\s+", " ", require(f.get("plate_number"),  "Plate number").upper()).strip()
+    chassis = require(f.get("chassis_number"), "Chassis number").upper()
+    engine  = require(f.get("engine_number"),  "Engine number")
+    if not PLATE_RE.match(plate):
+        raise ValidationError(
+            "Plate number must follow the format AAA NNNN "
+            "(e.g. ABC 1234 — three letters, a space, then 3 or 4 digits)."
+        )
+    if not CHASSIS_RE.match(chassis):
+        raise ValidationError(
+            "Chassis number must follow the format AAA-NNN "
+            "(e.g. CHS-001 — 2 to 5 uppercase letters, dash, then 3 to 8 digits)."
+        )
     vehicle_type   = require(f.get("vehicle_type"), "Vehicle type")
     ownership_type = must_be_in(require(f.get("ownership_type"), "Ownership").lower(),
                                 VALID_OWNERSHIP, "Ownership")
@@ -475,7 +500,12 @@ def registrations():
 
 
 def _validate_registration(f, *, is_edit=False):
-    reg_num = require(f.get("registration_number"), "Registration number")
+    reg_num = require(f.get("registration_number"), "Registration number").upper()
+    if not REGISTRATION_RE.match(reg_num):
+        raise ValidationError(
+            "Registration number must follow the format REG-YYYY-NNNNN "
+            "(e.g. REG-2025-00001)."
+        )
     reg_date = parse_date(f.get("registration_date"), "Registration date")
     exp_date = parse_date(f.get("expiration_date"),   "Expiration date")
     status   = must_be_in(require(f.get("registration_status"), "Status").lower(),

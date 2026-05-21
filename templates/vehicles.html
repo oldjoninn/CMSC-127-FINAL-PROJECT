@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% set page = 'vehicles' %}
-{% from 'partials/macros.html' import page_header, panel_head %}
+{% from 'partials/macros.html' import page_header, panel_head, row_actions %}
+{% from 'partials/icons.html' import icon %}
 
 {% block title %}Vehicles — LTO IMS{% endblock %}
 
@@ -24,8 +25,9 @@
       <td>{{ r.color }}</td>
       <td>{{ r.owner_first_name }} {{ r.owner_last_name }}</td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick='editVehicle({{ r | tojson }})'>Edit</button>
-        <a class="btn btn-sm btn-danger" href="/vehicles/delete/{{ r.plate_number }}/{{ r.chassis_number }}" onclick="return confirm('Delete?')">Del</a>
+        {{ row_actions('editVehicle(' ~ (r | tojson) ~ ')',
+                       '/vehicles/delete/' ~ r.plate_number ~ '/' ~ r.chassis_number,
+                       'Delete this vehicle?') }}
       </td>
     </tr>{% endfor %}
     {% if not rows %}<tr><td colspan="8" class="empty">No vehicles found.</td></tr>{% endif %}
@@ -34,27 +36,31 @@
 </div>
 
 {# ── ADD VEHICLE MODAL ── #}
-<div class="modal-backdrop" id="add-vehicle"><div class="modal">
+<div class="modal-backdrop" id="add-vehicle" role="dialog" aria-modal="true" aria-labelledby="add-vehicle-title"><div class="modal">
   <div class="modal-head">
-    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
-    <h2>Add New Vehicle</h2>
+    <span class="text-lto-blue">{{ icon('vehicles', class='w-6 h-6') }}</span>
+    <h2 id="add-vehicle-title">Add New Vehicle</h2>
   </div>
   <form method="POST" action="/vehicles/add">
     <div class="modal-body"><div class="form-grid">
       {% include 'partials/vehicle_fields.html' %}
     </div></div>
     <div class="form-actions">
-      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
-      <button type="submit" class="btn btn-primary">Add Vehicle</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">
+        {{ icon('close', class='w-4 h-4') }} Cancel
+      </button>
+      <button type="submit" class="btn btn-primary">
+        {{ icon('plus', class='w-4 h-4', stroke_width=2.25) }} Add Vehicle
+      </button>
     </div>
   </form>
 </div></div>
 
 {# ── EDIT VEHICLE MODAL ── #}
-<div class="modal-backdrop" id="edit-vehicle"><div class="modal">
+<div class="modal-backdrop" id="edit-vehicle" role="dialog" aria-modal="true" aria-labelledby="edit-vehicle-title"><div class="modal">
   <div class="modal-head">
-    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
-    <h2>Edit Vehicle</h2>
+    <span class="text-lto-blue">{{ icon('edit', class='w-6 h-6') }}</span>
+    <h2 id="edit-vehicle-title">Edit Vehicle</h2>
   </div>
   <form method="POST" action="/vehicles/edit">
     <div class="modal-body"><div class="form-grid">
@@ -63,8 +69,12 @@
       {% include 'partials/vehicle_fields.html' with context %}
     </div></div>
     <div class="form-actions">
-      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
-      <button type="submit" class="btn btn-primary">Save Changes</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">
+        {{ icon('close', class='w-4 h-4') }} Cancel
+      </button>
+      <button type="submit" class="btn btn-primary">
+        {{ icon('check', class='w-4 h-4', stroke_width=2.25) }} Save Changes
+      </button>
     </div>
   </form>
 </div></div>

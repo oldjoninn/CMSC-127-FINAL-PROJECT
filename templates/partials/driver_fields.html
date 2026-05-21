@@ -19,8 +19,15 @@
 
 <label class="field">
   License Number
+  {# Pattern mirrors LICENSE_RE in app.py: one letter, two digits, -NN-NNNNNN.
+     `style="text-transform:uppercase"` keeps display canonical; the server
+     also uppercases before validating so lowercase typing is accepted. #}
   <input name="license_number" {{ 'readonly' if p }} required
-         placeholder="N01-90-123456" id="{{ p }}ln">
+         placeholder="N01-90-123456" id="{{ p }}ln"
+         pattern="[A-Za-z][0-9]{2}-[0-9]{2}-[0-9]{6}"
+         title="Format: L##-##-###### (e.g. N01-90-123456)"
+         maxlength="13" autocomplete="off"
+         style="text-transform:uppercase">
 </label>
 
 <label class="field">

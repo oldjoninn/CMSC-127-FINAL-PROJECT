@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% set page = 'drivers' %}
-{% from 'partials/macros.html' import page_header, panel_head %}
+{% from 'partials/macros.html' import page_header, panel_head, row_actions %}
+{% from 'partials/icons.html' import icon %}
 
 {% block title %}Drivers — LTO IMS{% endblock %}
 
@@ -22,8 +23,9 @@
       <td><span class="badge {{ r.license_status }}">{{ r.license_status }}</span></td>
       <td>{{ r.license_expiration_date }}</td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick='editDriver({{ r | tojson }})'>Edit</button>
-        <a class="btn btn-sm btn-danger" href="/drivers/delete/{{ r.license_number }}" onclick="return confirm('Delete this driver?')">Del</a>
+        {{ row_actions('editDriver(' ~ (r | tojson) ~ ')',
+                       '/drivers/delete/' ~ r.license_number,
+                       'Delete this driver?') }}
       </td>
     </tr>{% endfor %}
     {% if not rows %}<tr><td colspan="8" class="empty">No drivers found.</td></tr>{% endif %}
@@ -32,27 +34,31 @@
 </div>
 
 {# ── ADD DRIVER MODAL ── #}
-<div class="modal-backdrop" id="add-driver"><div class="modal">
+<div class="modal-backdrop" id="add-driver" role="dialog" aria-modal="true" aria-labelledby="add-driver-title"><div class="modal">
   <div class="modal-head">
-    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
-    <h2>Add New Driver</h2>
+    <span class="text-lto-blue">{{ icon('drivers', class='w-6 h-6') }}</span>
+    <h2 id="add-driver-title">Add New Driver</h2>
   </div>
   <form method="POST" action="/drivers/add">
     <div class="modal-body"><div class="form-grid">
       {% include 'partials/driver_fields.html' with context %}
     </div></div>
     <div class="form-actions">
-      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
-      <button type="submit" class="btn btn-primary">Add Driver</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">
+        {{ icon('close', class='w-4 h-4') }} Cancel
+      </button>
+      <button type="submit" class="btn btn-primary">
+        {{ icon('plus', class='w-4 h-4', stroke_width=2.25) }} Add Driver
+      </button>
     </div>
   </form>
 </div></div>
 
 {# ── EDIT DRIVER MODAL ── #}
-<div class="modal-backdrop" id="edit-driver"><div class="modal">
+<div class="modal-backdrop" id="edit-driver" role="dialog" aria-modal="true" aria-labelledby="edit-driver-title"><div class="modal">
   <div class="modal-head">
-    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
-    <h2>Edit Driver</h2>
+    <span class="text-lto-blue">{{ icon('edit', class='w-6 h-6') }}</span>
+    <h2 id="edit-driver-title">Edit Driver</h2>
   </div>
   <form method="POST" action="/drivers/edit">
     <div class="modal-body"><div class="form-grid">
@@ -60,8 +66,12 @@
       {% include 'partials/driver_fields.html' with context %}
     </div></div>
     <div class="form-actions">
-      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
-      <button type="submit" class="btn btn-primary">Save Changes</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">
+        {{ icon('close', class='w-4 h-4') }} Cancel
+      </button>
+      <button type="submit" class="btn btn-primary">
+        {{ icon('check', class='w-4 h-4', stroke_width=2.25) }} Save Changes
+      </button>
     </div>
   </form>
 </div></div>

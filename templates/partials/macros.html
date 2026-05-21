@@ -1,7 +1,11 @@
 {# templates/partials/macros.html
-   Import this in any page template that needs page_header or panel_head:
-   {% from 'partials/macros.html' import page_header, panel_head %}
+   ────────────────────────────────
+   Shared layout macros for management pages. Import in any child template:
+
+     {% from 'partials/macros.html' import page_header, panel_head, row_actions %}
 #}
+{% from 'partials/icons.html' import icon %}
+
 
 {% macro page_header(crumb, title, desc) %}
 <div class="page-head">
@@ -10,19 +14,49 @@
     <h1>{{ title }}</h1>
     <div class="desc">{{ desc }}</div>
   </div>
-  <img src="{{ url_for('static', filename='lto-logo.jpg') }}" alt="" class="hidden md:block h-16 w-16 object-contain opacity-20">
+  <img src="{{ url_for('static', filename='lto-logo.jpg') }}" alt=""
+       class="hidden md:block h-16 w-16 object-contain opacity-20">
 </div>
 {% endmacro %}
 
+{# ─────────────────────────────────────────────────────────────────────────
+   panel_head(title, action_url, search_ph, add_label, add_modal)
+   Header bar above each CRUD table — title, search form, primary add button.
+   ────────────────────────────────────────────────────────────────────────#}
 {% macro panel_head(title, action_url, search_ph, add_label, add_modal) %}
 <div class="panel-head">
   <span class="font-display text-sm font-bold uppercase tracking-wide text-slate-800">{{ title }}</span>
   <span class="flex-1"></span>
-  <form method="GET" action="{{ action_url }}" class="flex gap-2">
-    <input name="q" placeholder="{{ search_ph }}" value="{{ search or '' }}"
-           class="bg-white border border-slate-300 rounded-md px-3 py-2 text-[13px] min-w-[280px] focus:outline-none focus:border-lto-blue focus:ring-2 focus:ring-lto-blue/20">
-    <button class="btn btn-ghost">Search</button>
+  <form method="GET" action="{{ action_url }}" class="flex gap-2" role="search">
+    <label class="relative">
+      <span class="sr-only">Search {{ title }}</span>
+      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+        {{ icon('search', class='w-4 h-4') }}
+      </span>
+      <input name="q" placeholder="{{ search_ph }}" value="{{ search or '' }}"
+             class="bg-white border border-slate-300 rounded-md pl-9 pr-3 py-2 text-[13px] min-w-[280px]
+                    focus:outline-none focus:border-lto-blue focus:ring-2 focus:ring-lto-blue/20">
+    </label>
+    <button class="btn btn-ghost" aria-label="Run search">
+      {{ icon('search', class='w-4 h-4') }} Search
+    </button>
   </form>
-  <button class="btn btn-primary" onclick="openModal('{{ add_modal }}')">+ {{ add_label }}</button>
+  <button class="btn btn-primary" onclick="openModal('{{ add_modal }}')" aria-label="{{ add_label }}">
+    {{ icon('plus', class='w-4 h-4', stroke_width=2.25) }} {{ add_label }}
+  </button>
 </div>
+{% endmacro %}
+
+{# ─────────────────────────────────────────────────────────────────────────
+   row_actions(edit_handler, delete_url, confirm_msg)
+   Standard Edit + Delete pair used in every CRUD table row.
+   ────────────────────────────────────────────────────────────────────────#}
+{% macro row_actions(edit_handler, delete_url, confirm_msg='Delete this record?') %}
+<button class="btn btn-sm btn-ghost" onclick='{{ edit_handler }}' aria-label="Edit record">
+  {{ icon('edit', class='w-3.5 h-3.5') }} Edit
+</button>
+<a class="btn btn-sm btn-danger" href="{{ delete_url }}"
+   onclick="return confirm('{{ confirm_msg }}')" aria-label="Delete record">
+  {{ icon('trash', class='w-3.5 h-3.5') }} Del
+</a>
 {% endmacro %}

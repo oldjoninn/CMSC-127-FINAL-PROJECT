@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% set page = 'violations' %}
-{% from 'partials/macros.html' import page_header, panel_head %}
+{% from 'partials/macros.html' import page_header, panel_head, row_actions %}
+{% from 'partials/icons.html' import icon %}
 
 {% block title %}Violations — LTO IMS{% endblock %}
 
@@ -26,8 +27,9 @@
       <td><span class="badge {{ r.violation_status }}">{{ r.violation_status }}</span></td>
       <td>{{ r.location }}</td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick='editViol({{ r | tojson }})'>Edit</button>
-        <a class="btn btn-sm btn-danger" href="/violations/delete/{{ r.traffic_violation_id }}" onclick="return confirm('Delete?')">Del</a>
+        {{ row_actions('editViol(' ~ (r | tojson) ~ ')',
+                       '/violations/delete/' ~ r.traffic_violation_id,
+                       'Delete this violation?') }}
       </td>
     </tr>{% endfor %}
     {% if not rows %}<tr><td colspan="10" class="empty">No violations found.</td></tr>{% endif %}
@@ -38,10 +40,10 @@
 {% set viol_types = ['Overspeeding','Reckless Driving','Illegal Parking','No Helmet','Driving Under the Influence','No License','Disregarding Traffic Signs','Obstruction'] %}
 
 {# ── ADD VIOLATION MODAL ── #}
-<div class="modal-backdrop" id="add-viol"><div class="modal">
+<div class="modal-backdrop" id="add-viol" role="dialog" aria-modal="true" aria-labelledby="add-viol-title"><div class="modal">
   <div class="modal-head">
-    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
-    <h2>Record Traffic Violation</h2>
+    <span class="text-red-600">{{ icon('violations', class='w-6 h-6') }}</span>
+    <h2 id="add-viol-title">Record Traffic Violation</h2>
   </div>
   <form method="POST" action="/violations/add">
     <div class="modal-body"><div class="form-grid">
@@ -80,17 +82,21 @@
       </label>
     </div></div>
     <div class="form-actions">
-      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
-      <button type="submit" class="btn btn-primary">Record Violation</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">
+        {{ icon('close', class='w-4 h-4') }} Cancel
+      </button>
+      <button type="submit" class="btn btn-primary">
+        {{ icon('plus', class='w-4 h-4', stroke_width=2.25) }} Record Violation
+      </button>
     </div>
   </form>
 </div></div>
 
 {# ── EDIT VIOLATION MODAL ── #}
-<div class="modal-backdrop" id="edit-viol"><div class="modal">
+<div class="modal-backdrop" id="edit-viol" role="dialog" aria-modal="true" aria-labelledby="edit-viol-title"><div class="modal">
   <div class="modal-head">
-    <img src="{{ url_for('static', filename='lto-logo.jpg') }}" class="h-7 w-7 object-contain" alt="">
-    <h2>Edit Violation</h2>
+    <span class="text-lto-blue">{{ icon('edit', class='w-6 h-6') }}</span>
+    <h2 id="edit-viol-title">Edit Violation</h2>
   </div>
   <form method="POST" action="/violations/edit">
     <input type="hidden" name="traffic_violation_id" id="evl-id">
@@ -114,8 +120,12 @@
       </label>
     </div></div>
     <div class="form-actions">
-      <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
-      <button type="submit" class="btn btn-primary">Save Changes</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModals()">
+        {{ icon('close', class='w-4 h-4') }} Cancel
+      </button>
+      <button type="submit" class="btn btn-primary">
+        {{ icon('check', class='w-4 h-4', stroke_width=2.25) }} Save Changes
+      </button>
     </div>
   </form>
 </div></div>

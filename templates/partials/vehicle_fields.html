@@ -19,14 +19,25 @@
 
 <label class="field">
   Plate Number
+  {# Pattern mirrors PLATE_RE in app.py: 3 letters, space, 3–4 digits.
+     3 digits covers motorcycle plates; 4 digits covers car plates. #}
   <input name="plate_number" {{ 'readonly' if ro }} required
-         placeholder="ABC 1234" id="{{ p }}pn">
+         placeholder="ABC 1234" id="{{ p }}pn"
+         pattern="[A-Za-z]{3} [0-9]{3,4}"
+         title="Format: AAA NNNN (e.g. ABC 1234) — 3 letters, a space, then 3 or 4 digits"
+         maxlength="8" autocomplete="off"
+         style="text-transform:uppercase">
 </label>
 
 <label class="field">
   Chassis Number
+  {# Pattern mirrors CHASSIS_RE in app.py: 2–5 letters, dash, 3–8 digits. #}
   <input name="chassis_number" {{ 'readonly' if ro }} required
-         placeholder="CHS-001" id="{{ p }}cn">
+         placeholder="CHS-001" id="{{ p }}cn"
+         pattern="[A-Za-z]{2,5}-[0-9]{3,8}"
+         title="Format: AAA-NNN (e.g. CHS-001) — 2 to 5 letters, dash, then 3 to 8 digits"
+         maxlength="14" autocomplete="off"
+         style="text-transform:uppercase">
 </label>
 
 <label class="field">

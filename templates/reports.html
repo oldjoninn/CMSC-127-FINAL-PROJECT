@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% set page = 'reports' %}
 {% from 'partials/macros.html' import page_header %}
+{% from 'partials/icons.html' import icon %}
 
 {% block title %}Reports — LTO IMS{% endblock %}
 
@@ -41,7 +42,7 @@
       </label>
       <label class="field">Min Age <input type="number" name="age_min" min="0" max="150" placeholder="18"></label>
       <label class="field">Max Age <input type="number" name="age_max" min="0" max="150" placeholder="65"></label>
-      <button class="btn btn-primary">Generate</button>
+      <button class="btn btn-primary">{{ icon('reports', class='w-4 h-4') }} Generate</button>
     </form>
   </div>
 
@@ -59,7 +60,7 @@
           {% endfor %}
         </select>
       </label>
-      <button class="btn btn-primary">Generate</button>
+      <button class="btn btn-primary">{{ icon('reports', class='w-4 h-4') }} Generate</button>
     </form>
   </div>
 
@@ -70,7 +71,7 @@
     <p class="report-help">Lists all vehicles whose registration expired before the chosen date.</p>
     <form class="inline-form" action="/reports/expired_registrations">
       <label class="field">As of Date <input type="date" name="as_of_date" required></label>
-      <button class="btn btn-primary">Generate</button>
+      <button class="btn btn-primary">{{ icon('reports', class='w-4 h-4') }} Generate</button>
     </form>
   </div>
 
@@ -87,7 +88,7 @@
           <option value="suspended">Suspended only</option>
         </select>
       </label>
-      <button class="btn btn-primary">Generate</button>
+      <button class="btn btn-primary">{{ icon('reports', class='w-4 h-4') }} Generate</button>
     </form>
   </div>
 
@@ -107,7 +108,7 @@
       </label>
       <label class="field">From <input type="date" name="date_from" required></label>
       <label class="field">To   <input type="date" name="date_to"   required></label>
-      <button class="btn btn-primary">Generate</button>
+      <button class="btn btn-primary">{{ icon('reports', class='w-4 h-4') }} Generate</button>
     </form>
   </div>
 
@@ -118,7 +119,7 @@
     <p class="report-help">Aggregated count of violations grouped by type for the year.</p>
     <form class="inline-form" action="/reports/violations_per_type">
       <label class="field">Year <input type="number" name="year" min="1900" max="2100" required placeholder="2025"></label>
-      <button class="btn btn-primary">Generate</button>
+      <button class="btn btn-primary">{{ icon('reports', class='w-4 h-4') }} Generate</button>
     </form>
   </div>
 
@@ -131,7 +132,7 @@
       <label class="field flex-1 !min-w-[200px]">City / Location
         <input name="location" required placeholder="Quezon City">
       </label>
-      <button class="btn btn-primary">Generate</button>
+      <button class="btn btn-primary">{{ icon('reports', class='w-4 h-4') }} Generate</button>
     </form>
   </div>
 

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'partials/icons.html' import icon %}
 {% set page = 'dashboard' %}
 
 {% block title %}Dashboard — LTO IMS{% endblock %}
@@ -21,20 +22,27 @@
     <p class="text-sm opacity-90 mb-10">Land Transportation Office &mdash; Information Management System</p>
 
     <div class="grid grid-cols-3 md:grid-cols-7 gap-3 max-w-[920px] mx-auto">
+      {# Quick-launch tiles. Each tuple = (href, icon_key, label, show_check_badge). #}
       {% set quick_items = [
-        ('/drivers',       '🪪', 'Drivers',       true),
-        ('/vehicles',      '🚗', 'Vehicles',      false),
-        ('/registrations', '📋', 'Registrations', false),
-        ('/violations',    '🚨', 'Violations',    false),
-        ('/reports',       '📊', 'Reports',       false),
-        ('/reports/invalid_licenses',      '⚠️', 'Invalid', false),
-        ('/reports/expired_registrations', '📅', 'Expired', false),
+        ('/drivers',                       'drivers',       'Drivers',       true ),
+        ('/vehicles',                      'vehicles',      'Vehicles',      false),
+        ('/registrations',                 'registrations', 'Registrations', false),
+        ('/violations',                    'violations',    'Violations',    false),
+        ('/reports',                       'reports',       'Reports',       false),
+        ('/reports/invalid_licenses',      'alert',         'Invalid',       false),
+        ('/reports/expired_registrations', 'calendar',      'Expired',       false),
       ] %}
-      {% for href, icon, label, ok in quick_items %}
-      <a href="{{ href }}" class="group flex flex-col items-center gap-2.5 py-3.5 px-1.5 rounded-lg text-white hover:bg-white/10 hover:-translate-y-1 transition-all duration-200">
-        <div class="relative w-14 h-14 rounded-full bg-white/15 border border-white/30 flex items-center justify-center text-[22px] group-hover:bg-lto-gold/25 group-hover:border-lto-gold transition shadow-lg">
-          {{ icon }}
-          {% if ok %}<span class="absolute -right-0.5 -top-0.5 w-[18px] h-[18px] rounded-full bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center border-2 border-lto-deep">✓</span>{% endif %}
+      {% for href, icon_key, label, ok in quick_items %}
+      <a href="{{ href }}" aria-label="{{ label }}"
+         class="group flex flex-col items-center gap-2.5 py-3.5 px-1.5 rounded-lg text-white hover:bg-white/10 hover:-translate-y-1 transition-all duration-200">
+        <div class="relative w-14 h-14 rounded-full bg-white/15 border border-white/30 flex items-center justify-center text-white group-hover:bg-lto-gold/25 group-hover:border-lto-gold transition shadow-lg">
+          {{ icon(icon_key, class='w-7 h-7') }}
+          {% if ok %}
+          <span class="absolute -right-0.5 -top-0.5 w-[18px] h-[18px] rounded-full bg-emerald-500 text-white flex items-center justify-center border-2 border-lto-deep"
+                aria-label="Active">
+            {{ icon('check', class='w-3 h-3', stroke_width=3) }}
+          </span>
+          {% endif %}
         </div>
         <span class="text-[11px] tracking-widest font-bold uppercase">{{ label }}</span>
       </a>
@@ -43,7 +51,7 @@
   </div>
 
   <div class="flex justify-between items-center px-5 py-2 text-[10.5px] bg-black/40 text-white/70 tracking-wider backdrop-blur">
-    <span>Release 1.0.0 &mdash; CMSC 127 Milestone 3</span>
+    <span>Release 1.0.0 &mdash; CMSC 127 Final Project</span>
     <span>Republika ng Pilipinas · Department of Transportation</span>
   </div>
 </section>
@@ -73,7 +81,9 @@
     <div class="panel-head">
       <span class="font-display text-sm font-bold uppercase tracking-wide text-slate-800">Recent Violations</span>
       <span class="flex-1"></span>
-      <a href="/violations" class="text-xs text-lto-blue hover:text-lto-deep font-medium">View all →</a>
+      <a href="/violations" class="text-xs text-lto-blue hover:text-lto-deep font-medium inline-flex items-center gap-1">
+        View all {{ icon('arrow-right', class='w-3.5 h-3.5') }}
+      </a>
     </div>
     <div id="recent-feed" class="divide-y divide-slate-100">
       <div class="empty">Loading…</div>
@@ -86,10 +96,18 @@
       <span class="font-display text-sm font-bold uppercase tracking-wide text-slate-800">Quick Help</span>
     </div>
     <div class="p-5 space-y-3 text-[13px] text-slate-600">
-      <div class="flex gap-3"><span class="text-lto-blue text-lg leading-none">💡</span><span><b class="text-slate-800">CRUD</b> — use the side modules to add, edit, or remove records.</span></div>
-      <div class="flex gap-3"><span class="text-lto-blue text-lg leading-none">📊</span><span><b class="text-slate-800">Reports</b> accept parameters; each one renders filtered results in real time.</span></div>
-      <div class="flex gap-3"><span class="text-lto-blue text-lg leading-none">🔍</span><span><b class="text-slate-800">Search</b> bars on each module support partial matches across multiple columns.</span></div>
-      <div class="flex gap-3"><span class="text-lto-blue text-lg leading-none">⚠️</span><span>Records with active dependencies cannot be deleted &mdash; resolve them first.</span></div>
+      {% set help_items = [
+        ('lightbulb', 'CRUD',    '— use the side modules to add, edit, or remove records.'),
+        ('reports',   'Reports', 'accept parameters; each one renders filtered results in real time.'),
+        ('search',    'Search',  'bars on each module support partial matches across multiple columns.'),
+        ('alert',     None,      'Records with active dependencies cannot be deleted — resolve them first.'),
+      ] %}
+      {% for ic, bold, text in help_items %}
+      <div class="flex gap-3">
+        <span class="text-lto-blue mt-0.5">{{ icon(ic, class='w-5 h-5') }}</span>
+        <span>{% if bold %}<b class="text-slate-800">{{ bold }}</b> {% endif %}{{ text }}</span>
+      </div>
+      {% endfor %}
     </div>
   </div>
 </div>
@@ -117,13 +135,25 @@
     }
   });
 
-  // Recent violations feed
+  // Recent violations feed.
+  // The triangle SVG mirrors the `violations` glyph in partials/icons.html so
+  // the live-rendered rows stay visually consistent with the server-rendered UI.
+  const ALERT_SVG = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="1.75"
+         stroke-linecap="round" stroke-linejoin="round"
+         class="w-5 h-5" aria-hidden="true" focusable="false">
+      <path d="M12 3l9.5 16.5a1 1 0 01-.87 1.5H3.37a1 1 0 01-.87-1.5L12 3z"/>
+      <path d="M12 10v4.5"/>
+      <circle cx="12" cy="17.5" r="0.9" fill="currentColor" stroke="none"/>
+    </svg>`;
+
   fetch('/api/recent').then(r => r.json()).then(rows => {
     const root = document.getElementById('recent-feed');
     if (!rows.length) { root.innerHTML = '<div class="empty">No recent violations.</div>'; return; }
     root.innerHTML = rows.map(r => `
       <div class="px-5 py-3 flex items-center gap-3 hover:bg-slate-50 transition">
-        <div class="w-9 h-9 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-lg shrink-0">🚨</div>
+        <div class="w-9 h-9 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">${ALERT_SVG}</div>
         <div class="flex-1 min-w-0">
           <div class="font-semibold text-slate-800 text-[13px] truncate">${r.violation_type || 'Traffic violation'} &middot; <span class="font-mono text-[11.5px] text-slate-500">${r.plate_number}</span></div>
           <div class="text-[11.5px] text-slate-500 truncate">${r.driver_name} &mdash; ${r.location}</div>
